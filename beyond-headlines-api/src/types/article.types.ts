@@ -1,0 +1,41 @@
+import { z } from 'zod';
+
+export const articleCreateSchema = z.object({
+  title: z.string().min(5),
+  content: z.string(),
+  excerpt: z.string().optional(),
+  categoryId: z.string(),
+  tagIds: z.array(z.string()).default([]),
+  bannerImage: z.string().url().optional(),
+});
+
+export const articleUpdateSchema = articleCreateSchema.partial().extend({
+  status: z.enum(['DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'ARCHIVED']).optional(),
+});
+
+export const articleQuerySchema = z.object({
+  status: z.enum(['DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'ARCHIVED']).optional(),
+  categoryId: z.string().optional(),
+  authorId: z.string().optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().default(20),
+});
+
+export const categoryCreateSchema = z.object({
+  name: z.string().min(2),
+  slug: z.string().optional(),
+  parentId: z.string().optional(),
+});
+
+export const tagCreateSchema = z.object({
+  name: z.string().min(2),
+  slug: z.string().optional(),
+});
+
+export const revisionCreateSchema = z.object({
+  content: z.string(),
+});
+
+export type ArticleCreateInput = z.infer<typeof articleCreateSchema>;
+export type ArticleUpdateInput = z.infer<typeof articleUpdateSchema>;
+export type ArticleQueryInput = z.infer<typeof articleQuerySchema>;
