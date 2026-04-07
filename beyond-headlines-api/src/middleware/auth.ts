@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../utils/jwt';
 import { unauthorized, forbidden } from '../utils/response';
-import { users } from '../data/mockData';
+import { db } from '../db/client';
 import { User } from '../types';
 
 declare global {
@@ -12,7 +12,7 @@ declare global {
   }
 }
 
-export const authenticate = (req: Request, res: Response, next: NextFunction) => {
+export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
     return unauthorized(res);
@@ -21,13 +21,17 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
   const token = authHeader.split(' ')[1];
   try {
     const payload = verifyToken(token) as { email: string };
-    const user = users.find(u => u.email === payload.email);
+    const user = await db.user.findUnique({
+      where: { email: payload.email },
+    });
     
     if (!user) {
       return unauthorized(res);
     }
 
-    req.user = user;
+    // Remove password
+    const { password, ...userWithoutPassword } = user;
+    req.user = userWithoutPassword as User;
     next();
   } catch (error) {
     return unauthorized(res);

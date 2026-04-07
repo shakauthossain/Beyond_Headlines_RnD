@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { scrapedHeadlines } from '../data/mockData';
+import { ScraperService } from '../services/scraper.service';
 import { authenticate, requireAdmin } from '../middleware/auth';
 import { ok, notFound } from '../utils/response';
 
@@ -12,8 +12,9 @@ const router = Router();
  *     summary: Manually queue a scrape job
  *     tags: [Scrape]
  */
-router.post('/trigger', requireAdmin, (req, res) => {
-  return ok(res, { jobId: 'job_' + Date.now(), status: 'QUEUED', message: 'Scrape job started' });
+router.post('/trigger', requireAdmin, async (req, res) => {
+  const result = await ScraperService.triggerScrape();
+  return ok(res, result);
 });
 
 /**
@@ -34,13 +35,9 @@ router.get('/status/:jobId', authenticate, (req, res) => {
  *     summary: Last scrape run summary
  *     tags: [Scrape]
  */
-router.get('/last-run', authenticate, (req, res) => {
-  return ok(res, {
-    timestamp: new Date().toISOString(),
-    headlinesScraped: 45,
-    sourcesReached: 5,
-    newClustersIdentified: 2,
-  });
+router.get('/last-run', authenticate, async (req, res) => {
+  const result = await ScraperService.getLastRun();
+  return ok(res, result);
 });
 
 export default router;

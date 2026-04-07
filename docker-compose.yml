@@ -1,0 +1,154 @@
+services:
+  # ── Infrastructure ──────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: bh_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bh_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bh_password}
+      POSTGRES_DB: ${POSTGRES_DB:-beyond_headlines}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bh_user} -d ${POSTGRES_DB:-beyond_headlines}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: bh_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── API Server ───────────────────────────────────────────────────────────────
+
+  api:
+    build:
+      context: ./beyond-headlines-api
+      dockerfile: Dockerfile
+      target: development
+    container_name: bh_api
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:${PORT:-8000}"
+    env_file:
+      - ./beyond-headlines-api/.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bh_user}:${POSTGRES_PASSWORD:-bh_password}@postgres:5432/${POSTGRES_DB:-beyond_headlines}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./beyond-headlines-api/src:/app/src   # hot reload in dev
+    command: npm run dev
+
+  # ── BullMQ Workers ──────────────────────────────────────────────────────────
+
+  worker-scrape:
+    build:
+      context: ./beyond-headlines-api
+      dockerfile: Dockerfile
+      target: development
+    container_name: bh_worker_scrape
+    restart: unless-stopped
+    env_file:
+      - ./beyond-headlines-api/.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bh_user}:${POSTGRES_PASSWORD:-bh_password}@postgres:5432/${POSTGRES_DB:-beyond_headlines}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: npm run workers:scrape
+
+  worker-cluster:
+    build:
+      context: ./beyond-headlines-api
+      dockerfile: Dockerfile
+      target: development
+    container_name: bh_worker_cluster
+    restart: unless-stopped
+    env_file:
+      - ./beyond-headlines-api/.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bh_user}:${POSTGRES_PASSWORD:-bh_password}@postgres:5432/${POSTGRES_DB:-beyond_headlines}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: npm run workers:cluster
+
+  worker-research:
+    build:
+      context: ./beyond-headlines-api
+      dockerfile: Dockerfile
+      target: development
+    container_name: bh_worker_research
+    restart: unless-stopped
+    env_file:
+      - ./beyond-headlines-api/.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bh_user}:${POSTGRES_PASSWORD:-bh_password}@postgres:5432/${POSTGRES_DB:-beyond_headlines}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: npm run workers:research
+
+  # ── Prisma Migrations (one-shot job) ────────────────────────────────────────
+
+  migrate:
+    build:
+      context: ./beyond-headlines-api
+      dockerfile: Dockerfile
+      target: development
+    container_name: bh_migrate
+    env_file:
+      - ./beyond-headlines-api/.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bh_user}:${POSTGRES_PASSWORD:-bh_password}@postgres:5432/${POSTGRES_DB:-beyond_headlines}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "npx prisma migrate deploy && npx prisma db seed"
+    restart: "no"   # runs once and exits
+
+  # ── Next.js Web (Phase 2 & 3) ───────────────────────────────────────────────
+  web:
+    build:
+      context: ./beyond-headlines-web
+      dockerfile: Dockerfile
+    container_name: bh_web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:

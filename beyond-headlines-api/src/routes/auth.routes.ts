@@ -1,7 +1,8 @@
 import { Router } from 'express';
+import bcrypt from 'bcrypt';
 import { loginSchema } from '../types/user.types';
 import { validate } from '../middleware/validate';
-import { users } from '../data/mockData';
+import { db } from '../db/client';
 import { signToken } from '../utils/jwt';
 import { ok, unauthorized } from '../utils/response';
 import { authenticate } from '../middleware/auth';
@@ -31,16 +32,27 @@ const router = Router();
  *       401:
  *         description: Unauthorized
  */
-router.post('/login', validate(loginSchema), (req, res) => {
-  const { email } = req.body;
-  const user = users.find(u => u.email === email);
+router.post('/login', validate(loginSchema), async (req, res) => {
+  const { email, password } = req.body;
+  
+  const user = await db.user.findUnique({
+    where: { email },
+  });
   
   if (!user) {
     return unauthorized(res);
   }
 
+  const isValid = await bcrypt.compare(password, user.password);
+  if (!isValid) {
+    return unauthorized(res);
+  }
+
+  // Remove password from response
+  const { password: _, ...userWithoutPassword } = user;
+
   const token = signToken({ email: user.email, role: user.role });
-  return ok(res, { token, user });
+  return ok(res, { token, user: userWithoutPassword });
 });
 
 /**

@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  name      String
+  role      UserRole  @default(EDITOR)
+  password  String
+  avatar    String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  articles  Article[]
+}
+
+model Category {
+  id       String     @id @default(uuid())
+  name     String
+  slug     String     @unique
+  parentId String?
+  articles Article[]
+  parent   Category?  @relation("CategoryToCategory", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryToCategory")
+}
+
+model Tag {
+  id   String @id @default(uuid())
+  name String @unique
+  slug String @unique
+}
+
+model Article {
+  id               String            @id @default(uuid())
+  title            String
+  slug             String            @unique
+  body             Json?
+  excerpt          String?
+  status           ArticleStatus     @default(DRAFT)
+  angle            String?
+  tone             Tone?
+  metaTitle        String?
+  metaDescription  String?
+  bannerImage      String?
+  tags             String[]
+  publishedAt      DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  authorId         String
+  categoryId       String?
+  author           User              @relation(fields: [authorId], references: [id])
+  category         Category?         @relation(fields: [categoryId], references: [id])
+  researchSessions ResearchSession[]
+  revisions        Revision[]
+}
+
+model Revision {
+  id        String   @id @default(uuid())
+  body      Json
+  title     String
+  savedAt   DateTime @default(now())
+  articleId String
+  authorId  String
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+}
+
+model ScrapedHeadline {
+  id        String   @id @default(uuid())
+  source    Source
+  headline  String
+  url       String   @unique
+  scrapedAt DateTime @default(now())
+  clusterId String?
+  cluster   Cluster? @relation(fields: [clusterId], references: [id])
+}
+
+model Cluster {
+  id           String            @id @default(uuid())
+  topic        String
+  summary      String
+  sentiment    String
+  articleCount Int               @default(0) @map("article_count")
+  isEmerging   Boolean           @default(false) @map("is_emerging")
+  createdAt    DateTime          @default(now())
+  headlines    ScrapedHeadline[]
+}
+
+model ResearchSession {
+  id         String   @id @default(uuid())
+  angle      String
+  sources    Json
+  timeline   Json
+  dataPoints Json     @map("data_points")
+  gaps       Json
+  createdAt  DateTime @default(now())
+  articleId  String
+  article    Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+}
+
+model Media {
+  id        String   @id @default(uuid())
+  filename  String
+  url       String
+  mimeType  String   @map("mime_type")
+  size      Int
+  alt       String?
+  createdAt DateTime @default(now())
+}
+
+enum ArticleStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum Tone {
+  ANALYTICAL
+  CRITICAL
+  EXPLANATORY
+}
+
+enum UserRole {
+  ADMIN
+  EDITOR
+}
+
+enum Source {
+  PROTHOM_ALO
+  DAILY_STAR
+  BDNEWS24
+  JUGANTOR
+  DHAKA_TRIBUNE
+  ITTEFAQ
+}

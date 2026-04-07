@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { articles } from '../data/mockData';
 import { authenticate, requireAdmin } from '../middleware/auth';
 import { ok, notFound, prePublishError, forbidden } from '../utils/response';
+import { PublishService } from '../services/publish.service';
 
 const router = Router();
 
@@ -12,12 +13,13 @@ const router = Router();
  *     summary: Direct publish an article
  *     tags: [Publish — Step 7]
  */
-router.post('/:articleId', authenticate, (req, res) => {
+router.post('/:articleId', authenticate, async (req, res) => {
   const index = articles.findIndex(a => a.id === req.params.articleId);
   if (index === -1) return notFound(res, 'Article not found');
   
+  const result = await PublishService.publish(req.params.articleId);
   articles[index].status = 'PUBLISHED';
-  articles[index].publishedAt = new Date().toISOString();
+  articles[index].publishedAt = result.publishedAt;
   return ok(res, articles[index]);
 });
 
@@ -43,12 +45,13 @@ router.post('/:articleId/submit-review', authenticate, (req, res) => {
  *     summary: Admin approves and publishes article
  *     tags: [Publish — Step 7]
  */
-router.post('/:articleId/approve', requireAdmin, (req, res) => {
+router.post('/:articleId/approve', requireAdmin, async (req, res) => {
   const index = articles.findIndex(a => a.id === req.params.articleId);
   if (index === -1) return notFound(res, 'Article not found');
   
+  const result = await PublishService.publish(req.params.articleId);
   articles[index].status = 'PUBLISHED';
-  articles[index].publishedAt = new Date().toISOString();
+  articles[index].publishedAt = result.publishedAt;
   return ok(res, articles[index]);
 });
 
@@ -90,10 +93,7 @@ router.get('/checklist/:articleId', authenticate, (req, res) => {
   const article = articles.find(a => a.id === req.params.articleId);
   if (!article) return notFound(res, 'Article not found');
 
-  const missing = [];
-  if (!article.bannerImage) missing.push('Banner Image');
-  if (article.tagIds.length === 0) missing.push('Tags');
-  if (article.content.length < 100) missing.push('Minimum content length');
+  const missing = PublishService.validateChecklist(article);
 
   if (missing.length > 0) return prePublishError(res, missing);
   return ok(res, { status: 'READY_TO_PUBLISH' });

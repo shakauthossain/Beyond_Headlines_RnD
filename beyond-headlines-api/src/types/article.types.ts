@@ -2,15 +2,20 @@ import { z } from 'zod';
 
 export const articleCreateSchema = z.object({
   title: z.string().min(5),
-  content: z.string(),
+  body: z.any(),
   excerpt: z.string().optional(),
-  categoryId: z.string(),
+  categoryId: z.string().optional(),
   tagIds: z.array(z.string()).default([]),
   bannerImage: z.string().url().optional(),
+  angle: z.string().optional(),
+  tone: z.enum(['ANALYTICAL', 'CRITICAL', 'EXPLANATORY']).optional(),
 });
 
 export const articleUpdateSchema = articleCreateSchema.partial().extend({
   status: z.enum(['DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'ARCHIVED']).optional(),
+  metaTitle: z.string().optional(),
+  metaDescription: z.string().optional(),
+  tags: z.array(z.string()).optional(),
 });
 
 export const articleQuerySchema = z.object({
@@ -33,7 +38,8 @@ export const tagCreateSchema = z.object({
 });
 
 export const revisionCreateSchema = z.object({
-  content: z.string(),
+  body: z.any(),
+  title: z.string(),
 });
 
 export type ArticleCreateInput = z.infer<typeof articleCreateSchema>;

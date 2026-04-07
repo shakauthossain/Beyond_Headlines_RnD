@@ -9,6 +9,7 @@ export interface User {
   name: string;
   role: UserRole;
   avatar?: string;
+  password?: string;
 }
 
 export interface Category {
@@ -27,23 +28,28 @@ export interface Tag {
 export interface MediaAsset {
   id: string;
   url: string;
-  type: 'IMAGE' | 'VIDEO' | 'PDF';
+  type: string;
   filename: string;
   size: number;
   createdAt: string;
+  alt?: string;
 }
 
 export interface Article {
   id: string;
   title: string;
   slug: string;
-  content: string;
-  excerpt: string;
+  body: any; // Tiptap JSON or string content
+  excerpt?: string;
   status: ArticleStatus;
-  categoryId: string;
+  categoryId?: string;
   authorId: string;
   tagIds: string[];
   bannerImage?: string;
+  angle?: string;
+  tone?: Tone;
+  metaTitle?: string;
+  metaDescription?: string;
   publishedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -52,37 +58,38 @@ export interface Article {
 export interface ArticleRevision {
   id: string;
   articleId: string;
-  content: string;
+  body: any;
+  title: string;
   createdAt: string;
   authorId: string;
 }
 
 export interface ScrapedHeadline {
   id: string;
-  title: string;
+  headline: string;
   url: string;
   source: Source;
   scrapedAt: string;
+  clusterId?: string;
 }
 
 export interface TopicCluster {
   id: string;
-  name: string;
-  description: string;
-  isEmerging: boolean;
-  headlineIds: string[];
+  topic: string;
+  summary: string;
+  sentiment: 'critical' | 'neutral' | 'supportive';
+  article_count: number;
+  is_emerging: boolean;
   createdAt: string;
 }
 
 export interface ResearchSession {
   id: string;
-  articleId?: string;
-  clusterId?: string;
-  topic: string;
-  sources: { title: string; url: string; credibility: number }[];
-  timeline: { event: string; date: string }[];
-  dataPoints: { label: string; value: string }[];
-  gaps: string[];
-  synthesis: string;
+  articleId: string;
+  angle: string;
+  sources: any[];
+  timeline: any[];
+  dataPoints: any[];
+  gaps: any[];
   createdAt: string;
 }

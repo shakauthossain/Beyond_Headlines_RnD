@@ -1,10 +1,11 @@
 import { Router } from 'express';
-import { researchSessions, clusters, articles } from '../data/mockData';
+import { db } from '../db/client';
+import { researchQueue } from '../workers/queue';
 import { topicBriefSchema, researchGenerateSchema } from '../types/ai.types';
 import { validate } from '../middleware/validate';
 import { authenticate } from '../middleware/auth';
 import { ok, created, notFound } from '../utils/response';
-import { LATENCY } from '../utils/delay';
+import { generateTopicBrief } from '../services/ai.service';
 
 const router = Router();
 
@@ -12,87 +13,56 @@ const router = Router();
  * @swagger
  * /research/topic-brief:
  *   post:
- *     summary: Generate an AI topic brief
+ *     summary: Generate an AI topic brief (Claude Sonnet)
  *     tags: [Research — Steps 2 & 3]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               clusterId:
- *                 type: string
- *     responses:
- *       201:
- *         description: Topic brief generated
  */
 router.post('/topic-brief', authenticate, validate(topicBriefSchema), async (req, res) => {
-  await LATENCY.sonnet();
-  const cluster = clusters.find(c => c.id === req.body.clusterId);
+  const cluster = await db.cluster.findUnique({
+    where:   { id: req.body.clusterId },
+    include: { headlines: { take: 20 } },
+  });
   if (!cluster) return notFound(res, 'Cluster not found');
 
-  const brief = {
-    clusterId: cluster.id,
-    title: `Brief: ${cluster.name}`,
-    framing: `This topic explores the intersection of ${cluster.description}.`,
-    keyAngles: ['Economic impact', 'Public sentiment', 'Policy shifts'],
-    generatedAt: new Date().toISOString(),
-  };
-  return created(res, brief);
+  const headlines = cluster.headlines.map((h: any) => h.headline);
+  const result    = await generateTopicBrief(cluster.summary, headlines);
+  return created(res, result);
 });
 
 /**
  * @swagger
  * /research/generate:
  *   post:
- *     summary: Generate a full research session
+ *     summary: Queue a full research session (Perplexity + Haiku)
  *     tags: [Research — Steps 2 & 3]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       201:
- *         description: Research session generated
  */
 router.post('/generate', authenticate, validate(researchGenerateSchema), async (req, res) => {
-  await LATENCY.research();
-  const article = articles.find(a => a.id === req.body.articleId);
-  
-  const newSession = {
-    id: `rs${researchSessions.length + 1}`,
-    articleId: req.body.articleId,
-    topic: article ? article.title : 'Deep Research Session',
-    sources: [
-      { title: 'Official Gazetted Policy', url: 'https://gov.bd/policy', credibility: 0.98 },
-      { title: 'Independent Economic Audit', url: 'https://audit.org/report', credibility: 0.92 }
-    ],
-    timeline: [
-      { event: 'Policy draft introduced', date: '2024-01-10' },
-      { event: 'Public consultation phase', date: '2024-02-15' }
-    ],
-    dataPoints: [
-      { label: 'Projected Budget Impact', value: '2.5 Billion BDT' },
-      { label: 'Stakeholder Approval Rate', value: '68%' }
-    ],
-    gaps: ['Long-term sustainability data is still under review.'],
-    synthesis: 'The research indicates a strong alignment with regional energy goals but highlights potential bottlenecks in infrastructure development.',
-    createdAt: new Date().toISOString(),
-  };
-  researchSessions.push(newSession);
-  return created(res, { ...newSession, generatedAt: new Date().toISOString() });
+  const { articleId, angle } = req.body;
+
+  const article = await db.article.findUnique({ where: { id: articleId } });
+  if (!article) return notFound(res, 'Article not found');
+
+  // Queue the research job — returns immediately; worker handles the AI work
+  const job = await researchQueue.add('research-session', { articleId, angle: angle ?? article.angle ?? '' });
+  return created(res, {
+    jobId:     job.id,
+    status:    'QUEUED',
+    articleId,
+    message:   'Research session queued. Poll GET /research/:articleId for results.',
+  });
 });
 
 /**
  * @swagger
  * /research/{articleId}:
  *   get:
- *     summary: List research sessions for an article
+ *     summary: All research sessions for an article
  *     tags: [Research — Steps 2 & 3]
  */
-router.get('/:articleId', (req, res) => {
-  const sessions = researchSessions.filter(s => s.articleId === req.params.articleId);
+router.get('/:articleId', authenticate, async (req, res) => {
+  const sessions = await db.researchSession.findMany({
+    where:   { articleId: req.params.articleId },
+    orderBy: { createdAt: 'desc' },
+  });
   return ok(res, sessions);
 });
 
@@ -103,8 +73,8 @@ router.get('/:articleId', (req, res) => {
  *     summary: Get a single research session
  *     tags: [Research — Steps 2 & 3]
  */
-router.get('/session/:id', (req, res) => {
-  const session = researchSessions.find(s => s.id === req.params.id);
+router.get('/session/:id', authenticate, async (req, res) => {
+  const session = await db.researchSession.findUnique({ where: { id: req.params.id } });
   if (!session) return notFound(res, 'Session not found');
   return ok(res, session);
 });

@@ -1,10 +1,17 @@
 import { Router, Request, Response } from 'express';
-import { articles, revisions } from '../data/mockData';
+import { db } from '../db/client';
 import { articleCreateSchema, articleUpdateSchema, revisionCreateSchema } from '../types/article.types';
 import { validate } from '../middleware/validate';
 import { authenticate } from '../middleware/auth';
 import { ok, created, noContent, notFound, list } from '../utils/response';
-import { Article } from '../types';
+import { 
+  generateOutline, 
+  inlineAssist, 
+  generateCounterpoint, 
+  subEditArticle, 
+  scoreHeadlines,
+  generatePackaging 
+} from '../services/ai.service';
 
 const router = Router();
 
@@ -14,44 +21,25 @@ const router = Router();
  *   get:
  *     summary: List articles with filters
  *     tags: [Articles]
- *     parameters:
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *       - in: query
- *         name: categoryId
- *         schema:
- *           type: string
- *       - in: query
- *         name: authorId
- *         schema:
- *           type: string
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           default: 1
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 20
- *     responses:
- *       200:
- *         description: List of articles
  */
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const { status, categoryId, authorId, page = 1, limit = 20 } = req.query;
   
-  let filtered = [...articles];
-  if (status) filtered = filtered.filter(a => a.status === status);
-  if (categoryId) filtered = filtered.filter(a => a.categoryId === categoryId);
-  if (authorId) filtered = filtered.filter(a => a.authorId === authorId);
+  const where: any = {};
+  if (status) where.status = status;
+  if (categoryId) where.categoryId = categoryId;
+  if (authorId) where.authorId = authorId;
 
-  const total = filtered.length;
-  const start = (Number(page) - 1) * Number(limit);
-  const data = filtered.slice(start, start + Number(limit));
+  const [total, data] = await Promise.all([
+    db.article.count({ where }),
+    db.article.findMany({
+      where,
+      skip: (Number(page) - 1) * Number(limit),
+      take: Number(limit),
+      orderBy: { updatedAt: 'desc' },
+      include: { category: true, author: { select: { id: true, name: true, role: true } } }
+    })
+  ]);
 
   return list(res, data, total, Number(page), Number(limit));
 });
@@ -62,23 +50,22 @@ router.get('/', (req, res) => {
  *   get:
  *     summary: Get article by ID or slug
  *     tags: [Articles]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Article data
- *       404:
- *         description: Not found
  */
-router.get('/:id', (req, res) => {
-  const article = articles.find(a => a.id === req.params.id || a.slug === req.params.id);
+router.get('/:id', async (req, res) => {
+  const article = await db.article.findFirst({
+    where: {
+      OR: [
+        { id: req.params.id },
+        { slug: req.params.id }
+      ]
+    },
+    include: { category: true, author: { select: { id: true, name: true, role: true } } }
+  });
+
   if (!article) return notFound(res, 'Article not found');
   return ok(res, article);
 });
+
 
 /**
  * @swagger
@@ -86,29 +73,19 @@ router.get('/:id', (req, res) => {
  *   post:
  *     summary: Create new article
  *     tags: [Articles]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/ArticleCreate'
- *     responses:
- *       201:
- *         description: Article created
  */
-router.post('/', authenticate, validate(articleCreateSchema), (req: Request, res: Response) => {
-  const newArticle: Article = {
-    id: `a${articles.length + 1}`,
-    ...req.body,
-    slug: req.body.title.toLowerCase().replace(/ /g, '-'),
-    status: 'DRAFT',
-    authorId: req.user!.id,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-  articles.push(newArticle);
+router.post('/', authenticate, validate(articleCreateSchema), async (req: Request, res: Response) => {
+  const slug = req.body.title.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '-').replace(/^-+|-+$/g, '');
+  
+  const newArticle = await db.article.create({
+    data: {
+      ...req.body,
+      slug,
+      status: 'DRAFT',
+      authorId: req.user!.id,
+    }
+  });
+
   return created(res, newArticle);
 });
 
@@ -118,28 +95,20 @@ router.post('/', authenticate, validate(articleCreateSchema), (req: Request, res
  *   patch:
  *     summary: Update an article
  *     tags: [Articles]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Article updated
  */
-router.patch('/:id', authenticate, validate(articleUpdateSchema), (req, res) => {
-  const index = articles.findIndex(a => a.id === req.params.id);
-  if (index === -1) return notFound(res, 'Article not found');
-
-  articles[index] = {
-    ...articles[index],
-    ...req.body,
-    updatedAt: new Date().toISOString(),
-  };
-  return ok(res, articles[index]);
+router.patch('/:id', authenticate, validate(articleUpdateSchema), async (req, res) => {
+  try {
+    const article = await db.article.update({
+      where: { id: req.params.id },
+      data: {
+        ...req.body,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    return ok(res, article);
+  } catch (err) {
+    return notFound(res, 'Article not found');
+  }
 });
 
 /**
@@ -148,17 +117,14 @@ router.patch('/:id', authenticate, validate(articleUpdateSchema), (req, res) => 
  *   delete:
  *     summary: Delete an article
  *     tags: [Articles]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       204:
- *         description: Success
  */
-router.delete('/:id', authenticate, (req, res) => {
-  const index = articles.findIndex(a => a.id === req.params.id);
-  if (index === -1) return notFound(res, 'Article not found');
-  articles.splice(index, 1);
-  return noContent(res);
+router.delete('/:id', authenticate, async (req, res) => {
+  try {
+    await db.article.delete({ where: { id: req.params.id } });
+    return noContent(res);
+  } catch (err) {
+    return notFound(res, 'Article not found');
+  }
 });
 
 /**
@@ -167,12 +133,12 @@ router.delete('/:id', authenticate, (req, res) => {
  *   get:
  *     summary: Get revision history
  *     tags: [Articles]
- *     responses:
- *       200:
- *         description: Revision history
  */
-router.get('/:id/revisions', (req, res) => {
-  const history = revisions.filter(r => r.articleId === req.params.id);
+router.get('/:id/revisions', async (req, res) => {
+  const history = await db.revision.findMany({
+    where: { articleId: req.params.id },
+    orderBy: { savedAt: 'desc' }
+  });
   return ok(res, history);
 });
 
@@ -182,22 +148,96 @@ router.get('/:id/revisions', (req, res) => {
  *   post:
  *     summary: Create an autosave revision
  *     tags: [Articles]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       201:
- *         description: Revision created
  */
-router.post('/:id/autosave', authenticate, validate(revisionCreateSchema), (req, res) => {
-  const newRevision = {
-    id: `r${revisions.length + 1}`,
-    articleId: req.params.id,
-    content: req.body.content,
-    authorId: req.user!.id,
-    createdAt: new Date().toISOString(),
-  };
-  revisions.push(newRevision);
+router.post('/:id/autosave', authenticate, validate(revisionCreateSchema), async (req, res) => {
+  const newRevision = await db.revision.create({
+    data: {
+      articleId: req.params.id,
+      body: req.body.body,
+      title: req.body.title,
+      authorId: req.user!.id,
+    }
+  });
   return created(res, newRevision);
 });
 
+/**
+ * @swagger
+ * /articles/{id}/assist:
+ *   post:
+ *     summary: AI Assistance for drafting (Outline, Assist, Counterpoint)
+ *     tags: [Articles]
+ */
+router.post('/:id/assist', authenticate, async (req, res) => {
+  const { mode, text } = req.body;
+  const article = await db.article.findUnique({ where: { id: req.params.id } });
+  if (!article) return notFound(res, 'Article not found');
+
+  let result;
+  switch (mode) {
+    case 'outline':
+      result = await generateOutline(article.angle || '', article.tone || 'ANALYTICAL');
+      break;
+    case 'assist':
+      result = await inlineAssist(text, article.tone || 'ANALYTICAL');
+      break;
+    case 'counterpoint':
+      result = await generateCounterpoint(text);
+      break;
+    default:
+      return res.status(400).json({ message: 'Invalid assist mode' });
+  }
+  return ok(res, result);
+});
+
+/**
+ * @swagger
+ * /articles/{id}/sub-edit:
+ *   post:
+ *     summary: AI Sub-editing (Clarity, Tone, Flow)
+ *     tags: [Articles]
+ */
+router.post('/:id/sub-edit', authenticate, async (req, res) => {
+  const article = await db.article.findUnique({ where: { id: req.params.id } });
+  if (!article) return notFound(res, 'Article not found');
+
+  const result = await subEditArticle(JSON.stringify(article.body));
+  return ok(res, result);
+});
+
+/**
+ * @swagger
+ * /articles/{id}/headlines-score:
+ *   post:
+ *     summary: AI Headline scoring
+ *     tags: [Articles]
+ */
+router.post('/:id/headlines-score', authenticate, async (req, res) => {
+  const { headlines } = req.body;
+  if (!headlines || !Array.isArray(headlines)) return res.status(400).json({ message: 'Headlines array required' });
+
+  const result = await scoreHeadlines(headlines);
+  return ok(res, result);
+});
+
+/**
+ * @swagger
+ * /articles/{id}/packaging:
+ *   post:
+ *     summary: AI Article packaging (Image concept, Social captions)
+ *     tags: [Articles]
+ */
+router.post('/:id/packaging', authenticate, async (req, res) => {
+  const article = await db.article.findUnique({ where: { id: req.params.id } });
+  if (!article) return notFound(res, 'Article not found');
+
+  const result = await generatePackaging(article.title, JSON.stringify(article.body));
+  return ok(res, result);
+});
+
 export default router;
+
+
+
+
+

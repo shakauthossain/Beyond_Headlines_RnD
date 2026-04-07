@@ -22,7 +22,7 @@ const router = Router();
 router.get('/', (req, res) => {
   const { emerging } = req.query;
   let filtered = [...clusters];
-  if (emerging === 'true') filtered = filtered.filter(c => c.isEmerging);
+  if (emerging === 'true') filtered = filtered.filter((c: any) => c.is_emerging);
   return ok(res, filtered);
 });
 
@@ -48,7 +48,7 @@ router.get('/:id', (req, res) => {
   const cluster = clusters.find(c => c.id === req.params.id);
   if (!cluster) return notFound(res, 'Cluster not found');
   
-  const headlines = scrapedHeadlines.filter(h => cluster.headlineIds.includes(h.id));
+  const headlines = scrapedHeadlines.filter((h: any) => h.clusterId === cluster.id);
   return ok(res, { ...cluster, headlines });
 });
 
@@ -70,7 +70,7 @@ router.get('/:id', (req, res) => {
 router.get('/headlines/raw', (req, res) => {
   const { source } = req.query;
   let filtered = [...scrapedHeadlines];
-  if (source) filtered = filtered.filter(h => h.source === source);
+  if (source) filtered = filtered.filter((h: any) => h.source === source);
   return ok(res, filtered);
 });
 
