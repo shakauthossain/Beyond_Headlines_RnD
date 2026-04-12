@@ -8,10 +8,12 @@ app.listen(PORT, async () => {
   console.log(`🚀 Beyond Headlines API is running on http://localhost:${PORT}`);
   console.log(`📚 Documentation is available at http://localhost:${PORT}/docs`);
 
-  // Start scraper scheduler
+  // Start scraper scheduler (Manual trigger only from Phase 5)
+  /*
   try {
     await scheduleScrapeJob();
   } catch (error) {
     console.error('[BullMQ] Failed to schedule scrape job:', error);
   }
+  */
 });

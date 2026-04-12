@@ -27,9 +27,9 @@ const researchWorker = new Worker(
       perplexityResult = await searchPerplexity(angle);
 
       // Step 2: Haiku synthesis
-      synthesis = await synthesiseResearch(angle, perplexityResult.rawText);
+      synthesis = await synthesiseResearch(angle, perplexityResult.rawText, perplexityResult.sources);
 
-      await setCached(cacheKey, { ...synthesis, sources: perplexityResult.sources }, config.researchCacheTtl);
+      await setCached(cacheKey, { ...synthesis, sources: synthesis.sources || perplexityResult.sources }, config.researchCacheTtl);
     }
 
     // Persist to research_sessions table
@@ -37,7 +37,7 @@ const researchWorker = new Worker(
       data: {
         articleId,
         angle,
-        sources:    perplexityResult.sources,
+        sources:    synthesis.sources || perplexityResult.sources,
         timeline:   synthesis.timeline,
         dataPoints: synthesis.data_points,
         gaps:       synthesis.gaps,

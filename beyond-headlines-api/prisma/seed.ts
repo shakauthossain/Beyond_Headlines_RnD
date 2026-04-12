@@ -9,8 +9,8 @@ async function main() {
   // Passwords are hashed with bcrypt (cost 10). Plain values shown in comment.
   // "password123" → $2b$10$...
   // In production, replace with real hashed passwords.
-  const adminPassword  = '$2b$10$cfzDcHsukcz1ziEL59eiw.qgCjr8g4//Doz0Z2vKN9HDsv4FeopBi'; // "secret"
-  const editorPassword = '$2b$10$cfzDcHsukcz1ziEL59eiw.qgCjr8g4//Doz0Z2vKN9HDsv4FeopBi'; // "secret"
+  const adminPassword  = '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'; // "password"
+  const editorPassword = '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'; // "password"
 
   const admin = await prisma.user.upsert({
     where:  { email: 'admin@beyondheadlines.com' },

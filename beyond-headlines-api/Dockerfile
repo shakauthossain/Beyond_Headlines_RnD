@@ -1,30 +1,36 @@
-FROM mcr.microsoft.com/playwright:v1.50.0-jammy AS base
+FROM node:20-alpine AS base
+
+# Install system dependencies for Prisma
+RUN apk add --no-cache openssl libc6-compat
+
 WORKDIR /app
 COPY package*.json ./
 
-# ── Stage 2: Development (hot reload via ts-node-dev) ────────────────────────
+# ── Stage 2: Development ─────────────────────────────────────────────────────
 FROM base AS development
-# Using npm install because we want to allow dev dependencies
 RUN npm install
 COPY . .
 RUN npx prisma generate
 EXPOSE 8000
 CMD ["npm", "run", "dev"]
 
-# ── Stage 3: Builder (compile TypeScript) ────────────────────────────────────
+# ── Stage 3: Builder ─────────────────────────────────────────────────────────
 FROM base AS builder
 RUN npm install
 COPY . .
+RUN npx prisma generate
 RUN npm run build
 
-# ── Stage 4: Production (lean image with only dist/) ─────────────────────────
-FROM mcr.microsoft.com/playwright:v1.50.0-jammy AS production
+# ── Stage 4: Production ──────────────────────────────────────────────────────
+FROM node:20-alpine AS production
+RUN apk add --no-cache openssl libc6-compat
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm install --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8000/health || exit 1

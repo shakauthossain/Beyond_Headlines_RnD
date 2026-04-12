@@ -1,6 +1,5 @@
-import { Queue } from 'bullmq';
+import { Queue, Job } from 'bullmq';
 import { redis } from '../redis/client';
-import { config } from '../config';
 
 const connection = redis;
 
@@ -30,18 +29,17 @@ export const researchQueue = new Queue('research', {
   },
 });
 
-// ── Scheduler: register the repeating scrape job ──────────────────────────────
-// Call this once on app startup. BullMQ persists the repeatable job in Redis,
-// so duplicate registrations are safely deduplicated.
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-export const scheduleScrapeJob = async (): Promise<void> => {
-  await scrapeQueue.add(
-    'scrape-all-sources',
-    {},
+export const triggerScrapeJob = async (query?: string, category?: string): Promise<Job> => {
+  const safeQuery = query ? query.toLowerCase().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '-').replace(/^-+|-+$/g, '') : 'all';
+  const job = await scrapeQueue.add(
+    query ? `scrape-${safeQuery}` : 'scrape-all-sources',
+    { query, category },
     {
-      repeat: { every: config.scrapeIntervalMs },
-      jobId: 'scrape-repeatable', // stable ID — prevents duplicates
+      jobId: query ? `scrape-${safeQuery}-${Date.now()}` : `scrape-manual-${Date.now()}`,
     },
   );
-  console.log(`[BullMQ] Scrape job scheduled every ${config.scrapeIntervalMs / 60000} minutes`);
+  console.log(`[BullMQ] Scrape job triggered${query ? ` for: ${query}` : ''} [Category: ${category || 'General'}]`);
+  return job;
 };

@@ -13,6 +13,11 @@ export const topicBriefResponseSchema = z.object({
     role: z.string()
   })),
   viewpoints: z.array(z.string()),
+  suggested_angles: z.array(z.object({
+    title: z.string(),
+    reasoning: z.string(),
+    target_audience: z.string()
+  })),
   generatedAt: z.string()
 });
 
@@ -25,10 +30,23 @@ export const researchResponseSchema = z.object({
   timeline: z.array(z.object({
     date: z.string(),
     event: z.string(),
-    source: z.string()
+    impact: z.string()
   })),
-  data_points: z.array(z.string()),
-  gaps: z.array(z.string()),
+  data_points: z.array(z.object({
+    value: z.string(),
+    metric: z.string(),
+    context: z.string()
+  })),
+  gaps: z.array(z.object({
+    topic: z.string(),
+    details: z.string()
+  })),
+  sources: z.array(z.object({
+    title: z.string(),
+    summary: z.string(),
+    url: z.string(),
+    credibility: z.enum(['High', 'Medium', 'Developing'])
+  })).optional(),
   generatedAt: z.string()
 });
 

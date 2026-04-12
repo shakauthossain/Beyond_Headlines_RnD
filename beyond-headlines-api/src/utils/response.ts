@@ -1,9 +1,9 @@
 import { Response } from 'express';
 
 // Consistent response helpers
-export const ok = (res: Response, data: any) => res.status(200).json(data);
+export const ok = (res: Response, data: any) => res.status(200).json({ data });
 
-export const created = (res: Response, data: any) => res.status(201).json(data);
+export const created = (res: Response, data: any) => res.status(201).json({ data });
 
 export const noContent = (res: Response) => res.status(204).send();
 

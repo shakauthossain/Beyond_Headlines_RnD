@@ -5,7 +5,7 @@ export const articleCreateSchema = z.object({
   body: z.any(),
   excerpt: z.string().optional(),
   categoryId: z.string().optional(),
-  tagIds: z.array(z.string()).default([]),
+  tags: z.array(z.string()).default([]),
   bannerImage: z.string().url().optional(),
   angle: z.string().optional(),
   tone: z.enum(['ANALYTICAL', 'CRITICAL', 'EXPLANATORY']).optional(),

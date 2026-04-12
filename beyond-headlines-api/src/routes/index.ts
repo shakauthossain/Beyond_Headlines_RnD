@@ -10,7 +10,7 @@ import publishRoutes from './publish.routes';
 import userRoutes from './users.routes';
 import mediaRoutes from './media.routes';
 import analyticsRoutes from './analytics.routes';
-import scrapeRoutes from './scrape.routes';
+import intelligenceRoutes from './intelligence.routes';
 
 const router = Router();
 
@@ -25,6 +25,6 @@ router.use('/publish', publishRoutes);
 router.use('/users', userRoutes);
 router.use('/media', mediaRoutes);
 router.use('/analytics', analyticsRoutes);
-router.use('/scrape', scrapeRoutes);
+router.use('/intelligence', intelligenceRoutes);
 
 export default router;

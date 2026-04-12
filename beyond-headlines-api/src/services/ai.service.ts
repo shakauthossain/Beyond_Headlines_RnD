@@ -48,7 +48,7 @@ async function callModel<T>(
         { role: 'system', content: system },
         { role: 'user',   content: prompt },
       ],
-    });
+    }, { timeout: 45000 }); // 45s timeout to prevent worker hangs
     const raw = (response.choices[0].message.content ?? '')
       .trim()
       .replace(/^```json\s*/i, '')
@@ -73,6 +73,7 @@ const clusterOutputSchema = z.array(z.object({
   sentiment:     z.enum(['critical', 'neutral', 'supportive']),
   article_count: z.number(),
   is_emerging:   z.boolean(),
+  indices:       z.array(z.number()), // Array of 0-based indices from the input list
 }));
 
 export async function clusterHeadlines(headlines: string[]): Promise<z.infer<typeof clusterOutputSchema>> {
@@ -82,8 +83,8 @@ export async function clusterHeadlines(headlines: string[]): Promise<z.infer<typ
 
   const result = await callModel(
     config.claudeHaikuModel,
-    'You are an editorial analyst. Group the following headlines into topic clusters. Return ONLY a JSON array, no preamble.',
-    `Headlines:\n${headlines.map((h, i) => `${i + 1}. ${h}`).join('\n')}\n\nReturn: [{"topic":"string","summary":"2 sentences max","sentiment":"critical|neutral|supportive","article_count":number,"is_emerging":boolean}]`,
+    'You are an editorial analyst. Group the following headlines into topic clusters. Return ONLY a JSON array, no preamble. Identify headlines by their 0-based index.',
+    `Headlines:\n${headlines.map((h, i) => `${i}. ${h}`).join('\n')}\n\nReturn structure: [{"topic":"string","summary":"string","sentiment":"critical|neutral|supportive","article_count":number,"is_emerging":boolean,"indices":[number]}]`,
     clusterOutputSchema,
     1500,
   );
@@ -101,9 +102,9 @@ export async function generateTopicBrief(
   return callModel(
     config.claudeSonnetModel,
     'You are a senior editorial analyst producing structured briefing documents for journalists. Return ONLY valid JSON.',
-    `Cluster summary: ${clusterSummary}\n\nHeadlines:\n${headlines.join('\n')}\n\nReturn: {"issue_summary":"string","key_questions":["string"],"stakeholders":[{"name":"string","role":"string"}],"viewpoints":["string"],"generatedAt":"ISO string"}`,
+    `Cluster summary: ${clusterSummary}\n\nHeadlines:\n${headlines.join('\n')}\n\nReturn: {"issue_summary":"string","key_questions":["string"],"stakeholders":[{"name":"string","role":"string"}],"viewpoints":["string"],"suggested_angles":[{"title":"string","reasoning":"string","target_audience":"string"}],"generatedAt":"ISO string"}`,
     topicBriefResponseSchema,
-    1200,
+    4000,
   );
 }
 
@@ -140,13 +141,20 @@ export async function searchPerplexity(angle: string): Promise<{ sources: any[];
 export async function synthesiseResearch(
   angle: string,
   perplexityRawText: string,
+  rawSources: any[] = [],
 ): Promise<ResearchResponse> {
   return callModel(
     config.claudeHaikuModel,
-    'You are a research analyst. Synthesise the following web research into a structured JSON report. Return ONLY valid JSON.',
-    `Editorial angle: ${angle}\n\nResearch content:\n${perplexityRawText}\n\nReturn: {"timeline":[{"date":"YYYY-MM-DD","event":"string","source":"string"}],"data_points":["string"],"gaps":["string"],"generatedAt":"ISO string"}`,
+    'You are a research analyst. Synthesise the following web research into a high-fidelity JSON report for premium journalism. Return ONLY valid JSON.',
+    `Editorial angle: ${angle}\n\nResearch content:\n${perplexityRawText}\n\nURLs found:\n${rawSources.map(s => s.url).join('\n')}\n\nReturn EXACTLY this structure: {
+      "timeline": [{"date":"YYYY-MM-DD","event":"string","impact":"Short description of consequence"}],
+      "data_points": [{"value":"Big number/stat","metric":"What it measures","context":"Why it matters"}],
+      "gaps": [{"topic":"string","details":"string"}],
+      "sources": [{"title":"Article title","summary":"2-sentence summary","url":"string","credibility":"High|Medium|Developing"}],
+      "generatedAt":"ISO string"
+    }`,
     researchResponseSchema,
-    1500,
+    2500,
   );
 }
 
@@ -204,7 +212,7 @@ export async function subEditArticle(articleBody: string): Promise<SubEditRespon
     'You are a sub-editor. Analyse this article for clarity, tone, and flow issues. Return ONLY valid JSON.',
     `Article:\n${articleBody}\n\nReturn: {"clarity_issues":[{"paragraph_index":0,"issue_description":"string","suggested_fix":"string"}],"tone_issues":[...],"flow_issues":[...],"generatedAt":"ISO string"}`,
     subEditResponseSchema,
-    2000,
+    4000,
   );
 }
 
@@ -257,6 +265,24 @@ export async function generatePackaging(
     'You are a digital editor. Generate packaging assets for this article. Return ONLY valid JSON.',
     `Title: ${title}\n\nArticle:\n${articleBody}\n\nReturn: {"image_concept":"2-3 sentence visual description","pull_quotes":[{"quote":"string","paragraph_index":0}],"social_captions":{"twitter":"280 chars max","linkedin":"professional tone","whatsapp":"forward-friendly"},"generatedAt":"ISO string"}`,
     packagingResponseSchema,
-    800,
   );
+}
+
+// ── Step 7: Query Classification (Claude Haiku) ──────────────────────────────
+
+export async function classifyQuery(query: string): Promise<'General' | 'Sports' | 'Business' | 'Politics' | 'Entertainment'> {
+  const schema = z.object({ category: z.enum(['General', 'Sports', 'Business', 'Politics', 'Entertainment']) });
+  try {
+    const result = await callModel(
+      config.claudeHaikuModel,
+      'You are a news desk editor. Categorize the user search query into one of: General, Sports, Business, Politics, Entertainment. Return ONLY JSON.',
+      `Query: "${query}"\n\nReturn: {"category":"General|Sports|Business|Politics|Entertainment"}`,
+      schema,
+      100,
+    );
+    return result.category;
+  } catch (err) {
+    console.error('[AI] Classification failed, defaulting to General:', err);
+    return 'General';
+  }
 }

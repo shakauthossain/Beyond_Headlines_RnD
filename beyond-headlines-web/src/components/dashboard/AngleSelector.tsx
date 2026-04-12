@@ -37,11 +37,11 @@ export default function AngleSelector({ brief, onConfirm, isSubmitting }: AngleS
           Editorial Brief: Issue Summary
         </h2>
         <p className="text-slate-700 leading-relaxed whitespace-pre-wrap font-medium">
-          {brief.issue_summary}
+          {brief?.issue_summary || 'No summary available.'}
         </p>
       </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         {/* 2. Key Questions */}
         <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-8">
           <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center">
@@ -49,7 +49,7 @@ export default function AngleSelector({ brief, onConfirm, isSubmitting }: AngleS
             Key Questions to Answer
           </h2>
           <ul className="space-y-3">
-            {brief.key_questions.map((q, i) => (
+            {(brief?.key_questions || []).map((q: string, i: number) => (
               <li key={i} className="flex items-start text-sm text-slate-600 font-medium">
                 <span className="text-red-500 mr-2 font-bold">•</span>
                 {q}
@@ -65,10 +65,10 @@ export default function AngleSelector({ brief, onConfirm, isSubmitting }: AngleS
             Primary Stakeholders
           </h2>
           <div className="space-y-4">
-            {brief.stakeholders.map((s, i) => (
+            {(brief?.stakeholders || []).map((s: any, i: number) => (
               <div key={i} className="flex flex-col border-l-2 border-slate-100 pl-4 py-1">
                 <span className="text-sm font-bold text-slate-800">{s.name}</span>
-                <span className="text-xs text-slate-500 font-medium">{s.position}</span>
+                <span className="text-xs text-slate-500 font-medium">{s.role || s.position}</span>
               </div>
             ))}
           </div>
@@ -83,7 +83,7 @@ export default function AngleSelector({ brief, onConfirm, isSubmitting }: AngleS
         </h2>
         
         <div className="grid grid-cols-1 gap-4 mb-8">
-          {brief.suggested_angles.map((angle, i) => (
+          {(brief?.suggested_angles || []).map((angle: any, i: number) => (
             <button
               key={i}
               onClick={() => { setSelectedAngle(angle.title); setCustomAngle(''); }}

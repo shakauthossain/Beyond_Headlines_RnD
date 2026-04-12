@@ -29,11 +29,15 @@ const clusterWorker = new Worker(
     const cached   = await getCached(cacheKey);
 
     let clusters: any[];
+    const start = Date.now();
     if (cached) {
       console.log('[ClusterWorker] Cache hit — returning cached clusters');
       clusters = cached as any[];
     } else {
+      console.log(`[ClusterWorker] Calling AI for ${headlineTexts.length} headlines...`);
       clusters = await clusterHeadlines(headlineTexts);
+      const duration = Date.now() - start;
+      console.log(`[ClusterWorker] AI clustering took ${duration}ms`);
       await setCached(cacheKey, clusters, config.clusterCacheTtl);
     }
 
@@ -49,18 +53,27 @@ const clusterWorker = new Worker(
         },
       });
 
-      // Link matching headlines to this cluster
-      const matchingIds = rawHeadlines
-        .filter((h: any) => headlineTexts.slice(0, c.article_count).includes(h.headline))
-        .map((h: any) => h.id);
+      // Link matching headlines using AI-returned indices
+      const matchingIds = c.indices
+        .map((idx: number) => rawHeadlines[idx]?.id)
+        .filter(Boolean);
 
-      await db.scrapedHeadline.updateMany({
-        where: { id: { in: matchingIds } },
-        data:  { clusterId: created.id },
-      });
+      if (matchingIds.length > 0) {
+        await db.scrapedHeadline.updateMany({
+          where: { id: { in: matchingIds } },
+          data:  { clusterId: created.id },
+        });
+      }
     }
 
     console.log(`[ClusterWorker] Created ${clusters.length} clusters`);
+    
+    // Finalize status for discovery pipeline tracking
+    const { originalJobId } = job.data;
+    if (originalJobId) {
+      await redis.set(`discovery:status:${originalJobId}`, 'COMPLETED', 'EX', 3600);
+    }
+
     return { clusterCount: clusters.length };
   },
   { connection: redis, concurrency: 2 },
