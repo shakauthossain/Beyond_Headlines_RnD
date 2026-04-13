@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
@@ -6,11 +7,8 @@ async function main() {
   console.log('[Seed] Seeding database...');
 
   // ── Users ──────────────────────────────────────────────────────────────────
-  // Passwords are hashed with bcrypt (cost 10). Plain values shown in comment.
-  // "password123" → $2b$10$...
-  // In production, replace with real hashed passwords.
-  const adminPassword  = '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'; // "password"
-  const editorPassword = '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'; // "password"
+  const adminPassword  = await bcrypt.hash('password', 10);
+  const editorPassword = await bcrypt.hash('password', 10);
 
   const admin = await prisma.user.upsert({
     where:  { email: 'admin@beyondheadlines.com' },
@@ -147,6 +145,50 @@ async function main() {
   });
 
   console.log(`[Seed] Article verified/created: ${article.slug}`);
+
+  // ── Selector Configs (Discovery Engine) ────────────────────────────────────
+  const selectorConfigs = [
+    {
+      sourceName: 'DAILY_STAR',
+      urlSlug:    'https://www.thedailystar.net/tags/{query}',
+      selector:   'h3.card-title a',
+      category:   'Search',
+      isActive:   true,
+    },
+    {
+      sourceName: 'PROTHOM_ALO',
+      urlSlug:    'https://www.prothomalo.com/search?q={query}',
+      selector:   'a.title-link',
+      category:   'Search',
+      isActive:   true,
+    },
+    {
+      sourceName: 'DHAKA_TRIBUNE',
+      urlSlug:    'https://www.dhakatribune.com/topic/{query}',
+      selector:   'a.link_overlay',
+      category:   'Search',
+      isActive:   true,
+    },
+  ];
+
+  for (const config of selectorConfigs) {
+    await (prisma as any).selectorConfig.upsert({
+      where: {
+        sourceName_category: {
+          sourceName: config.sourceName,
+          category:   config.category,
+        },
+      },
+      update: {
+        urlSlug:  config.urlSlug,
+        selector: config.selector,
+        isActive: config.isActive,
+      },
+      create: config,
+    });
+  }
+
+  console.log('[Seed] Discovery SelectorConfigs initialized');
   console.log('[Seed] ✅ Done!');
 }
 

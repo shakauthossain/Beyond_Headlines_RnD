@@ -56,7 +56,8 @@ services:
         condition: service_healthy
     volumes:
       - ./beyond-headlines-api/src:/app/src   # hot reload in dev
-    command: npm run dev
+      - ./beyond-headlines-api/prisma:/app/prisma
+    command: sh -c "npx prisma generate && npm run dev"
 
   # ── BullMQ Workers ──────────────────────────────────────────────────────────
 
@@ -76,7 +77,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: npm start
+    volumes:
+      - ./beyond-headlines-scraper/src:/app/src
+      - ./beyond-headlines-api/prisma:/app/prisma
+    command: sh -c "npx prisma generate && npm start"
 
   worker-cluster:
     build:
@@ -95,7 +99,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: npm run workers:cluster
+    volumes:
+      - ./beyond-headlines-api/src:/app/src
+      - ./beyond-headlines-api/prisma:/app/prisma
+    command: sh -c "npx prisma generate && npm run workers:cluster"
 
   worker-research:
     build:
@@ -114,7 +121,32 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: npm run workers:research
+    volumes:
+      - ./beyond-headlines-api/src:/app/src
+      - ./beyond-headlines-api/prisma:/app/prisma
+    command: sh -c "npx prisma generate && npm run workers:research"
+
+  worker-discovery:
+    build:
+      context: ./beyond-headlines-api
+      dockerfile: Dockerfile
+      target: development
+    container_name: bh_worker_discovery
+    restart: unless-stopped
+    env_file:
+      - ./beyond-headlines-api/.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bh_user}:${POSTGRES_PASSWORD:-bh_password}@postgres:5432/${POSTGRES_DB:-beyond_headlines}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./beyond-headlines-api/src:/app/src
+      - ./beyond-headlines-api/prisma:/app/prisma
+    command: sh -c "npx prisma generate && npm run workers:discovery"
 
   # ── Prisma Migrations (one-shot job) ────────────────────────────────────────
 
@@ -131,7 +163,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: sh -c "npx prisma migrate deploy && npx prisma db seed"
+    volumes:
+      - ./beyond-headlines-api/prisma:/app/prisma
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npx prisma db seed"
     restart: "no"   # runs once and exits
 
   # ── Next.js Web (Phase 2 & 3) ───────────────────────────────────────────────

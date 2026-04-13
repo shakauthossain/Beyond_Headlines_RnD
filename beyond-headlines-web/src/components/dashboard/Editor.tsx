@@ -37,13 +37,13 @@ export default function Editor({ articleId, initialContent, title, onSave }: Edi
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Underline,
       Placeholder.configure({
         placeholder: 'Start writing your investigative piece here...',
       }),
       CharacterCount,
     ],
     content: initialContent || '',
+    immediatelyRender: false,
     editorProps: {
       attributes: {
         class: 'prose prose-slate max-w-none focus:outline-none min-h-[500px] px-8 py-4',

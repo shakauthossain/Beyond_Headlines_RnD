@@ -73,7 +73,9 @@ export default function ResearchTabs({ session }: ResearchTabsProps) {
                       <ShieldCheck size={10} className="mr-1" />
                       {s.credibility} Tier
                     </div>
-                    <span className="text-[10px] text-slate-400 italic">Source: {s.domain || new URL(s.url).hostname}</span>
+                    <span className="text-[10px] text-slate-400 italic">
+                      Source: {s.domain || (s.url && s.url.startsWith('http') ? (new URL(s.url).hostname) : 'Unknown')}
+                    </span>
                   </div>
                 </div>
               ))}

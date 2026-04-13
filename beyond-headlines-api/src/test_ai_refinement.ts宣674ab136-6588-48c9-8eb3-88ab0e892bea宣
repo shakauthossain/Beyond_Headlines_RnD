@@ -1,0 +1,21 @@
+import { extractSearchIntent } from './src/services/ai.service';
+import { config } from './src/config';
+
+async function test() {
+  console.log('--- Testing Query Refinement ---');
+  const queries = [
+    'mideast conflcit',
+    'fule price in bangladehs',
+    'rohingya crisis updates'
+  ];
+
+  for (const q of queries) {
+    const intent = await extractSearchIntent(q);
+    console.log(`Original: "${q}"`);
+    console.log(`Refined:  "${intent.refinedQuery}"`);
+    console.log(`Slug:     "${intent.searchSlug}"`);
+    console.log('---');
+  }
+}
+
+test().catch(console.error);

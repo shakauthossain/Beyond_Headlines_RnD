@@ -70,19 +70,25 @@ model Revision {
 }
 
 model ScrapedHeadline {
-  id        String   @id @default(uuid())
-  source    Source
-  headline  String
-  url       String   @unique
-  scrapedAt DateTime @default(now())
-  clusterId String?
-  cluster   Cluster? @relation(fields: [clusterId], references: [id])
+  id          String   @id @default(uuid())
+  source      String
+  headline    String
+  url         String   @unique
+  category    String   @default("General")
+  scrapedAt   DateTime @default(now())
+  content     String?
+  clusterId   String?
+  cluster     Cluster? @relation(fields: [clusterId], references: [id])
+  headlineTsv Unsupported("tsvector")? @map("headline_tsv")
+
+  @@index([headlineTsv], type: Gin)
 }
 
 model Cluster {
   id           String            @id @default(uuid())
   topic        String
   summary      String
+  category     String            @default("General")
   sentiment    String
   articleCount Int               @default(0) @map("article_count")
   isEmerging   Boolean           @default(false) @map("is_emerging")
@@ -137,4 +143,27 @@ enum Source {
   JUGANTOR
   DHAKA_TRIBUNE
   ITTEFAQ
+}
+
+model SelectorConfig {
+  id             String    @id @default(uuid())
+  sourceName     String
+  category       String
+  urlSlug        String
+  selector       String
+  bodySelector   String?
+  isActive       Boolean   @default(true)
+  lastSuccessAt  DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([sourceName, category])
+}
+
+model AlertLog {
+  id             String   @id @default(uuid())
+  source         String
+  selectorUsed   String
+  resultCount    Int
+  jobId          String
+  timestamp      DateTime @default(now())
 }

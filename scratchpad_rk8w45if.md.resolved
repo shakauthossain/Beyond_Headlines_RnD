@@ -1,0 +1,19 @@
+# Task: Find SSR-friendly search URLs and CSS selectors
+
+## Goals
+- [ ] Find URL template and CSS selector for The Daily Star
+- [ ] Find URL template and CSS selector for Prothom Alo
+- [ ] Find URL template and CSS selector for Dhaka Tribune
+
+## Findings
+### The Daily Star
+- URL Template: https://www.thedailystar.net/search?t={query}
+- CSS Selector: a.gs-title
+
+### Prothom Alo
+- URL Template: https://www.prothomalo.com/search?q={query}
+- CSS Selector: a.title-link
+
+### Dhaka Tribune
+- URL Template: https://www.dhakatribune.com/search?q={query}
+- CSS Selector: a.gs-title

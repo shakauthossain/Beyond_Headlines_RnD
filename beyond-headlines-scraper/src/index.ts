@@ -3,6 +3,7 @@ import * as cheerio from 'cheerio';
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 import dotenv from 'dotenv';
+import { URL } from 'url';
 
 dotenv.config();
 
@@ -11,149 +12,199 @@ const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
   maxRetriesPerRequest: null,
 });
 
-const SOURCES = [
-  { 
-    name: 'PROTHOM_ALO', 
-    selector: 'h3 span',
-    urls: {
-      General: 'https://en.prothomalo.com/bangladesh',
-      Sports: 'https://en.prothomalo.com/sports',
-      Business: 'https://en.prothomalo.com/business',
-      Politics: 'https://en.prothomalo.com/bangladesh',
-      Entertainment: 'https://en.prothomalo.com/entertainment'
-    }
-  },
-  { 
-    name: 'DAILY_STAR', 
-    selector: 'h3.title a, h1.title a',
-    urls: {
-      General: 'https://www.thedailystar.net/bangladesh',
-      Sports: 'https://www.thedailystar.net/sports',
-      Business: 'https://www.thedailystar.net/business',
-      Politics: 'https://www.thedailystar.net/news/politics',
-      Entertainment: 'https://www.thedailystar.net/entertainment'
-    }
-  },
-  { 
-    name: 'DHAKA_TRIBUNE', 
-    selector: 'h2.title a, h3.title a',
-    urls: {
-      General: 'https://www.dhakatribune.com/bangladesh',
-      Sports: 'https://www.dhakatribune.com/sport',
-      Business: 'https://www.dhakatribune.com/business',
-      Politics: 'https://www.dhakatribune.com/bangladesh/politics',
-      Entertainment: 'https://www.dhakatribune.com/entertainment'
-    }
-  }
-];
-
-async function scrapeAll(query?: string, category: string = 'General') {
+async function scrapeSources(category: string, jobId: string, searchSlug?: string, refinedQuery?: string) {
   const allHeadlines: any[] = [];
   
-  for (const source of SOURCES) {
-    try {
-      const url = (source.urls as any)[category] || source.urls.General;
-      console.log(`[Scraper] Fetching ${source.name} (${category})...`);
-      let activeUrl = url;
-      let response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
-      });
-      let html = await response.text();
-      
-      // Check for Meta Refresh Redirect (Dynamic news sites often use this)
-      const refreshMatch = html.match(/<meta http-equiv="refresh" content=".*url='(.*)'"/i);
-      if (refreshMatch && refreshMatch[1]) {
-        activeUrl = refreshMatch[1];
-        if (!activeUrl.startsWith('http')) {
-           activeUrl = new URL(url).origin + activeUrl;
-        }
-        console.log(`[Scraper] Following meta-refresh to: ${activeUrl}`);
-        response = await fetch(activeUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        html = await response.text();
-      }
+  // 1. Fetch live configurations from Postgres
+  // If searchSlug is provided, we strictly use the 'Search' category templates
+  const targetCategory = searchSlug ? 'Search' : category;
+  const configs = await db.selectorConfig.findMany({
+    where: { category: targetCategory, isActive: true }
+  });
 
-      const $ = cheerio.load(html);
-      
-      $(source.selector).each((_, el) => {
-        const headline = $(el).text().trim();
-        let href = $(el).attr('href') || ($(el).is('a') ? '' : $(el).closest('a').attr('href'));
-        
-        if (headline && headline.length > 10) {
-          if (href && !href.startsWith('http')) {
-            const base = new URL(url).origin;
-            href = `${base}${href.startsWith('/') ? '' : '/'}${href}`;
-          }
-          allHeadlines.push({
-            headline,
-            url: href || url,
-            source: source.name
-          });
-        }
-      });
-    } catch (err: any) {
-      console.error(`[Scraper] Error scraping ${source.name}:`, err.message);
-    }
+  if (configs.length === 0) {
+    console.warn(`[Scraper] No active SelectorConfigs found for category: ${targetCategory}`);
+    return [];
   }
 
-  // Deduplicate
+  // 2. Fetch all sources concurrently using Promise.allSettled
+  const scrapePromises = configs.map(async (config) => {
+    let sourceHeadlines = 0;
+    try {
+      // SMART QUERY SELECTION:
+      // - If URL looks like a Search page, use full Refined Query for precision
+      // - If URL looks like a Tag/Topic page, use Search Slug for stability
+      let queryValue = searchSlug || '';
+      
+      if (refinedQuery) {
+        const isSearchPage = config.urlSlug.includes('search?q=') || 
+                            config.urlSlug.includes('search?t=') || 
+                            config.urlSlug.includes('?query=');
+        
+        if (isSearchPage) {
+          queryValue = refinedQuery;
+        }
+      }
+
+      const finalUrl = queryValue 
+        ? config.urlSlug.replace(/{query}/g, encodeURIComponent(queryValue))
+        : config.urlSlug;
+
+      console.log(`[Scraper v6] Fetching ${config.sourceName} (${targetCategory}) -> ${finalUrl}`);
+      
+      const response = await fetch(finalUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
+        signal: AbortSignal.timeout(15000) // 15s timeout
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      let html = await response.text();
+      const $ = cheerio.load(html);
+      
+      $(config.selector).each((_, el) => {
+        const headlineText = $(el).text().trim();
+        let href = $(el).attr('href');
+        
+        if (!href && $(el).is('a')) href = $(el).attr('href');
+        if (!href) href = $(el).closest('a').attr('href');
+
+        if (headlineText && headlineText.length > 20) {
+          let absoluteUrl = href || finalUrl;
+          
+          if (href) {
+            if (href.startsWith('//')) {
+              absoluteUrl = `https:${href}`;
+            } else if (href.startsWith('/')) {
+              const origin = new URL(finalUrl).origin;
+              absoluteUrl = `${origin}${href}`;
+            } else if (!href.startsWith('http')) {
+              absoluteUrl = `${finalUrl.replace(/\/+$/, '')}/${href}`;
+            }
+          }
+
+          allHeadlines.push({
+            headline: headlineText,
+            url: absoluteUrl,
+            source: config.sourceName,
+            category
+          });
+          sourceHeadlines++;
+        }
+      });
+
+      // 3. Telemetry: Check result count for Soft Failures
+      if (sourceHeadlines < 5) {
+        console.warn(`[Telemetry] ${config.sourceName} returned only ${sourceHeadlines} headlines.`);
+        await db.alertLog.create({
+          data: {
+            source: config.sourceName,
+            selectorUsed: config.selector,
+            resultCount: sourceHeadlines,
+            jobId: jobId,
+          }
+        });
+      } else {
+        await db.selectorConfig.update({
+          where: { id: config.id },
+          data: { lastSuccessAt: new Date() }
+        });
+      }
+
+    } catch (err: any) {
+      console.error(`[Scraper] Error scraping ${config.sourceName}: ${err.message}`);
+      await db.alertLog.create({
+        data: {
+          source: config.sourceName,
+          selectorUsed: config.selector,
+          resultCount: 0,
+          jobId: jobId,
+        }
+      });
+    }
+  });
+
+  await Promise.allSettled(scrapePromises);
+
+  // 4. Deduplication
   const unique = Array.from(new Map(allHeadlines.map(h => [h.url, h])).values());
   return unique;
 }
 
 const worker = new Worker(
-  'scrape', // Queue name
+  'scrape',
   async (job) => {
-    console.log(`[Worker] Processing job: ${job.id} for query: ${job.data.query || 'baseline'} (Category: ${job.data.category || 'General'})`);
+    let category = 'General';
+    let query = '';
+    let searchSlug = '';
+
+    // Handle payload structural changes generically
+    if (job.data.params) {
+      category = job.data.params.category;
+      query = job.data.params.refinedQuery || job.data.query; // Use refined query if available
+      searchSlug = job.data.params.searchSlug;
+    } else {
+      category = job.data.category || 'General';
+      query = job.data.query || '';
+      searchSlug = job.data.searchSlug || '';
+    }
+
+    console.log(`[Worker] Processing job: ${job.id} | Slug: ${searchSlug || 'None'} | Query: ${query || 'baseline'}`);
     
-    // 1. Scrape
-    const headlines = await scrapeAll(job.data.query, job.data.category);
-    
-    // 2. Persist
-    console.log(`[Worker] Persisting ${headlines.length} headlines...`);
+    // Targeted Search-First Scrape (Hybrid Mode)
+    let headlines = await scrapeSources(category, String(job.id), searchSlug, query);
+
+    console.log(`[Worker] Persisting ${headlines.length} unique headlines safely to Database...`);
     let count = 0;
     for (const h of headlines) {
       try {
         await db.scrapedHeadline.upsert({
           where: { url: h.url },
-          update: { headline: h.headline },
+          update: { 
+            headline: h.headline, 
+            category: h.category,
+            clusterId: null,      // Disconnect so it re-enters the fresh clustering pool
+            scrapedAt: new Date() // Force timestamp refresh
+          },
           create: {
             headline: h.headline,
             url: h.url,
-            source: h.source
+            source: h.source,
+            category: h.category
           }
         });
         count++;
-      } catch (e) {}
+      } catch (e: any) {
+        console.error(`[Worker] Upsert error: ${e.message}`);
+      }
     }
 
-    // 3. Mark status in Redis
-    await redis.set(`discovery:status:${job.id}`, 'SCRAPING_DONE', 'EX', 3600);
-
-    // 4. Dispatch clustering (Optional: the main API can also catch the 'completed' event, 
-    // but for continuity we can trigger the cluster queue here if we have its definition)
-    // Actually, for a clean extraction, let's keep the pipeline flow logic.
-    // We'll use a simple Redis call to add to the cluster queue if needed, 
-    // or just let the main API orchestrate. 
-    // For now, I'll port exactly what was in scrape.worker.ts.
+    // 5. Fallback Trigger: If local results are low, trigger Perplexity discovery
+    if (count < 5 && job.data.params) {
+      console.log(`[Worker] Low results (${count}). Triggering Perplexity fallback...`);
+      const discoveryQueue = new Queue('discovery', { connection: redis });
+      const { timeframe = 'last_week', region = 'international', refinedQuery } = job.data.params;
+      
+      await discoveryQueue.add(`fallback-${job.id}`, {
+        query: refinedQuery || job.data.query,
+        category,
+        timeframe,
+        region,
+        originalJobId: job.id
+      }, { removeOnComplete: true });
+    }
     
-    const clusterQueue = new Queue('cluster', { connection: redis });
-    await clusterQueue.add('run-clustering', { 
-      headlineCount: count, 
-      originalJobId: job.id 
-    }, { 
-      removeOnComplete: true,
-      jobId: `cluster-${job.id}` // Use consistent ID to avoid duplicates
-    });
-    
-    console.log(`[Worker] Dispatched clustering for ${count} headlines.`);
+    console.log(`[Worker] Finished Scrape. Dispatched clustering trigger for ${count} headlines.`);
     return { count };
   },
-  { connection: redis, concurrency: 1 }
+  { connection: redis, concurrency: 5 } // Increased concurrency for robust throughput
 );
 
 worker.on('completed', (job) => console.log(`[Worker] Job ${job.id} completed.`));
-worker.on('failed', (job, err) => console.error(`[Worker] Job ${job?.id} failed:`, err));
+worker.on('failed', (job, err) => console.error(`[Worker] Job ${job?.id} failed:`, err.message));
 
-console.log('🚀 Independent Scraper Service Started');
+console.log('🚀 Deterministic Enterprise Scraper Worker Started');

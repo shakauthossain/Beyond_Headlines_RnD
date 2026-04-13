@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { triggerScrapeJob } from '../workers/queue';
+import { triggerDiscoveryJob } from '../workers/queue';
 import { ok, badRequest } from '../utils/response';
 import { db } from '../db/client';
 import { redis } from '../redis/client';
-import { classifyQuery } from '../services/ai.service';
+import { categorizeQuery } from '../services/ai.service';
 
 const router = Router();
 
@@ -24,24 +24,29 @@ const router = Router();
  *     responses:
  *       200:
  *         description: Scan triggered with jobId
+ *       400:
+ *         description: Search query is required
  */
 router.post('/scan', async (req, res) => {
-  const { query } = req.body;
-  
-  // 1. Classify the query to understand its topic (e.g. Sports, Business)
-  const category = await classifyQuery(query);
-  console.log(`[Intelligence] Query "${query}" classified as: ${category}`);
+  const { query, timeframe, region, forceCategory } = req.body;
+  if (!query) return badRequest(res, 'Search query is required');
 
-  // 2. Trigger the background job with the identified category
-  const job = await triggerScrapeJob(query, category);
+  // If the user forced a category, use it. Otherwise, let Claude auto-detect.
+  let category = forceCategory && forceCategory !== 'Auto-detect' 
+    ? forceCategory 
+    : await categorizeQuery(query);
+  
+  // Trigger the new Perplexity Sonar discovery job, passing constraints down
+  const job = await triggerDiscoveryJob(query, category, timeframe, region);
   
   // Initialize status in Redis
   await redis.set(`discovery:status:${job.id}`, 'STARTED', 'EX', 3600);
   
   return ok(res, { 
-    message: 'Intelligence scan triggered successfully', 
+    message: `Intelligence discovery for ${category} triggered successfully`, 
     jobId:   job.id,
-    query 
+    query,
+    category
   });
 });
 
@@ -83,9 +88,17 @@ router.get('/status/:id', async (req, res) => {
  *         description: List of trending clusters
  */
 router.get('/trending', async (req, res) => {
+  const { category } = req.query;
+  
+  const where: any = {};
+  if (category) {
+    where.category = category as string;
+  }
+
   const clusters = await db.cluster.findMany({
+    where,
     orderBy: { createdAt: 'desc' },
-    take: 12, // Show more recent clusters to avoid missing new discoveries
+    take: 12,
     include: {
       headlines: true
     }

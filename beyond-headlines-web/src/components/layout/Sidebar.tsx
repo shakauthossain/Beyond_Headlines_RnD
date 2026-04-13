@@ -27,6 +27,7 @@ const navItems = [
   { name: 'Sub-editing', href: '/dashboard/sub-editing', icon: ClipboardCheck },
   { name: 'Packaging', href: '/dashboard/packaging', icon: Package },
   { name: 'Publishing', href: '/dashboard/publishing', icon: Send },
+  { name: 'Scraper Settings', href: '/dashboard/settings', icon: ClipboardCheck },
 ];
 
 interface SidebarProps {

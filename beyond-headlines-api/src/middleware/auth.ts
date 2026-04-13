@@ -39,10 +39,25 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 };
 
 export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
-  authenticate(req, res, () => {
-    if (req.user?.role !== 'ADMIN') {
-      return forbidden(res);
-    }
-    next();
-  });
+  if (!req.user) {
+    return unauthorized(res);
+  }
+
+  if (req.user.role !== 'ADMIN') {
+    return forbidden(res);
+  }
+
+  next();
+};
+
+export const requireEditorOrAdmin = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.user) {
+    return unauthorized(res);
+  }
+
+  if (req.user.role !== 'ADMIN' && req.user.role !== 'EDITOR') {
+    return forbidden(res);
+  }
+
+  next();
 };
