@@ -40,27 +40,127 @@ async function callModel<T>(
   schema: z.ZodType<T>,
   maxTokens: number = 1024,
 ): Promise<T> {
-  const _call = async (prompt: string): Promise<T> => {
-    const response = await openrouter.chat.completions.create({
-      model,
-      max_tokens: maxTokens,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user',   content: prompt },
-      ],
-    }, { timeout: 45000 }); // 45s timeout to prevent worker hangs
-    const raw = (response.choices[0].message.content ?? '')
+  const extractJsonCandidate = (input: string): string => {
+    const trimmed = input
       .trim()
       .replace(/^```json\s*/i, '')
-      .replace(/\s*```$/,       '')
+      .replace(/^```\s*/i, '')
+      .replace(/\s*```$/, '')
       .trim();
-    return schema.parse(JSON.parse(raw));
+
+    if (!trimmed) return trimmed;
+
+    const firstObj = trimmed.indexOf('{');
+    const firstArr = trimmed.indexOf('[');
+    let start = -1;
+    if (firstObj >= 0 && firstArr >= 0) start = Math.min(firstObj, firstArr);
+    else start = Math.max(firstObj, firstArr);
+    if (start < 0) return trimmed;
+
+    const open = trimmed[start];
+    const close = open === '{' ? '}' : ']';
+
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let i = start; i < trimmed.length; i++) {
+      const ch = trimmed[i];
+
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+
+      if (ch === open) depth++;
+      if (ch === close) depth--;
+
+      if (depth === 0) {
+        return trimmed.slice(start, i + 1);
+      }
+    }
+
+    return trimmed.slice(start);
+  };
+
+  const parseJsonSafely = (raw: string): T => {
+    const candidate = extractJsonCandidate(raw)
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'");
+
+    const parseAttempts = [
+      candidate,
+      // Best-effort repair for trailing commas.
+      candidate.replace(/,\s*([}\]])/g, '$1'),
+    ];
+
+    let lastError: unknown = null;
+    for (const attempt of parseAttempts) {
+      try {
+        return schema.parse(JSON.parse(attempt));
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error('Failed to parse model JSON response');
+  };
+
+  const _call = async (prompt: string): Promise<T> => {
+    let response;
+    try {
+      // Ask the model to return JSON directly when provider supports it.
+      response = await openrouter.chat.completions.create({
+        model,
+        max_tokens: maxTokens,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: prompt },
+        ],
+      }, { timeout: 45000 }); // 45s timeout to prevent worker hangs
+    } catch {
+      // Fallback for providers/models that do not support response_format.
+      response = await openrouter.chat.completions.create({
+        model,
+        max_tokens: maxTokens,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: prompt },
+        ],
+      }, { timeout: 45000 });
+    }
+
+    const raw = (response.choices[0].message.content ?? '').trim();
+    return parseJsonSafely(raw);
   };
 
   try {
     return await _call(user);
-  } catch {
-    // Retry once with stricter instruction
+  } catch (err: any) {
+    const message = (err?.message || '').toLowerCase();
+    const isParseOrSchemaError =
+      err instanceof SyntaxError ||
+      err instanceof z.ZodError ||
+      message.includes('json') ||
+      message.includes('parse') ||
+      message.includes('schema');
+
+    // Retry only when model output shape/JSON is wrong.
+    // For network/provider timeouts, fail fast so client can show a useful retry path.
+    if (!isParseOrSchemaError) {
+      throw err;
+    }
+
     return await _call(`${user}\n\nRespond with valid JSON only. No preamble, no markdown.`);
   }
 }
@@ -384,6 +484,86 @@ export async function generateCounterpoint(paragraph: string): Promise<{ counter
     `Argument:\n${paragraph}\n\nReturn: {"counterpoint":"string","generatedAt":"ISO string"}`,
     schema,
     500,
+  );
+}
+
+const completeSectionsSchema = z.object({
+  completed: z.string(),
+  generatedAt: z.string(),
+});
+
+export async function completeSectionsDraft(
+  draftText: string,
+  tone: string,
+): Promise<z.infer<typeof completeSectionsSchema>> {
+  return callModel(
+    config.claudeSonnetModel,
+    'You are a senior newsroom writer. Expand outline notes into polished article sections while preserving factual caution. Return ONLY valid JSON.',
+    `Tone: ${tone}\n\nDraft content:\n${draftText}\n\nTask: Complete unfinished sections into full publishable draft paragraphs. Keep section headings intact when present.\n\nReturn: {"completed":"full revised draft as plain text","generatedAt":"ISO string"}`,
+    completeSectionsSchema,
+    2200,
+  );
+}
+
+const conversationalRewriteSchema = z.object({
+  revised: z.string(),
+  highlights: z.array(z.string()),
+  generatedAt: z.string(),
+});
+
+export async function conversationalRewrite(
+  draftText: string,
+  prompt: string,
+  tone: string,
+): Promise<z.infer<typeof conversationalRewriteSchema>> {
+  return callModel(
+    config.claudeSonnetModel,
+    'You are an editorial copilot. Apply user prompt instructions to rewrite the draft without inventing facts. Return ONLY valid JSON.',
+    `Tone: ${tone}\n\nUser instruction:\n${prompt}\n\nCurrent draft:\n${draftText}\n\nReturn: {"revised":"full revised draft as plain text","highlights":["3-5 bullets of what changed"],"generatedAt":"ISO string"}`,
+    conversationalRewriteSchema,
+    2200,
+  );
+}
+
+const completeSectionSchema = z.object({
+  completed: z.string(),
+  generatedAt: z.string(),
+});
+
+export async function completeSingleSection(
+  sectionTitle: string,
+  sectionNote: string,
+  sectionBody: string,
+  tone: string,
+  researchContext: string,
+): Promise<z.infer<typeof completeSectionSchema>> {
+  return callModel(
+    config.claudeSonnetModel,
+    'You are a senior long-form journalist. Expand one section into clean publication-quality paragraphs. Return ONLY valid JSON.',
+    `Tone: ${tone}\n\nSection title: ${sectionTitle}\nSection note: ${sectionNote || 'N/A'}\nCurrent section text: ${sectionBody || 'N/A'}\n\nResearch context:\n${researchContext || 'N/A'}\n\nTask: Write this section in 2-4 concise paragraphs. Preserve factual caution and avoid hallucinating facts.\n\nReturn: {"completed":"full section text","generatedAt":"ISO string"}`,
+    completeSectionSchema,
+    900,
+  );
+}
+
+const rewriteSectionSchema = z.object({
+  revised: z.string(),
+  highlights: z.array(z.string()),
+  generatedAt: z.string(),
+});
+
+export async function rewriteSingleSection(
+  sectionTitle: string,
+  sectionBody: string,
+  prompt: string,
+  tone: string,
+): Promise<z.infer<typeof rewriteSectionSchema>> {
+  return callModel(
+    config.claudeSonnetModel,
+    'You are an editorial copilot. Rewrite one section based on user instruction without inventing facts. Return ONLY valid JSON.',
+    `Tone: ${tone}\n\nSection title: ${sectionTitle}\n\nUser instruction:\n${prompt}\n\nCurrent section:\n${sectionBody}\n\nReturn: {"revised":"revised full section text","highlights":["3 concise bullets"],"generatedAt":"ISO string"}`,
+    rewriteSectionSchema,
+    900,
   );
 }
 

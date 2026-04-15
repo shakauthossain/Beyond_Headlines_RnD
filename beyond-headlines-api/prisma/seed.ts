@@ -1,33 +1,33 @@
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcrypt';
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcrypt";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('[Seed] Seeding database...');
+  console.log("[Seed] Seeding database...");
 
   // ── Users ──────────────────────────────────────────────────────────────────
-  const adminPassword  = await bcrypt.hash('password', 10);
-  const editorPassword = await bcrypt.hash('password', 10);
+  const adminPassword = await bcrypt.hash("password", 10);
+  const editorPassword = await bcrypt.hash("password", 10);
 
   const admin = await prisma.user.upsert({
-    where:  { email: 'admin@beyondheadlines.com' },
+    where: { email: "admin@beyondheadlines.com" },
     update: {},
     create: {
-      email:    'admin@beyondheadlines.com',
-      name:     'Zia Ahmed',
-      role:     'ADMIN',
+      email: "admin@beyondheadlines.com",
+      name: "Zia Ahmed",
+      role: "ADMIN",
       password: adminPassword,
     },
   });
 
   const editor = await prisma.user.upsert({
-    where:  { email: 'editor@beyondheadlines.com' },
+    where: { email: "editor@beyondheadlines.com" },
     update: {},
     create: {
-      email:    'editor@beyondheadlines.com',
-      name:     'Farah Karim',
-      role:     'EDITOR',
+      email: "editor@beyondheadlines.com",
+      name: "Farah Karim",
+      role: "EDITOR",
       password: editorPassword,
     },
   });
@@ -36,72 +36,97 @@ async function main() {
 
   // ── Categories ─────────────────────────────────────────────────────────────
   const politics = await prisma.category.upsert({
-    where:  { slug: 'politics' },
+    where: { slug: "politics" },
     update: {},
-    create: { name: 'Politics', slug: 'politics' },
+    create: { name: "Politics", slug: "politics" },
   });
 
   const economy = await prisma.category.upsert({
-    where:  { slug: 'economy' },
+    where: { slug: "economy" },
     update: {},
-    create: { name: 'Economy', slug: 'economy' },
+    create: { name: "Economy", slug: "economy" },
   });
 
   const energy = await prisma.category.upsert({
-    where:  { slug: 'energy' },
+    where: { slug: "energy" },
     update: {},
-    create: { name: 'Energy', slug: 'energy', parentId: economy.id },
+    create: { name: "Energy", slug: "energy", parentId: economy.id },
   });
 
   await prisma.category.upsert({
-    where:  { slug: 'technology' },
+    where: { slug: "technology" },
     update: {},
-    create: { name: 'Technology', slug: 'technology' },
+    create: { name: "Technology", slug: "technology" },
   });
 
   await prisma.category.upsert({
-    where:  { slug: 'culture' },
+    where: { slug: "culture" },
     update: {},
-    create: { name: 'Culture', slug: 'culture' },
+    create: { name: "Culture", slug: "culture" },
   });
 
-  console.log('[Seed] Categories created');
+  console.log("[Seed] Categories created");
 
   // ── Clusters ───────────────────────────────────────────────────────────────
-  let cluster1 = await prisma.cluster.findFirst({ where: { topic: 'Energy Crisis & Fuel Prices' } });
+  let cluster1 = await prisma.cluster.findFirst({
+    where: { topic: "Energy Crisis & Fuel Prices" },
+  });
   if (!cluster1) {
     cluster1 = await prisma.cluster.create({
       data: {
-        topic:       'Energy Crisis & Fuel Prices',
-        summary:     'Ongoing coverage of shifting fuel prices and their impact on consumer costs.',
-        sentiment:   'neutral',
+        topic: "Energy Crisis & Fuel Prices",
+        summary:
+          "Ongoing coverage of shifting fuel prices and their impact on consumer costs.",
+        sentiment: "neutral",
         articleCount: 2,
-        isEmerging:  true,
+        isEmerging: true,
       },
     });
   }
 
-  let cluster2 = await prisma.cluster.findFirst({ where: { topic: 'Economic Inflation Trends' } });
+  let cluster2 = await prisma.cluster.findFirst({
+    where: { topic: "Economic Inflation Trends" },
+  });
   if (!cluster2) {
     cluster2 = await prisma.cluster.create({
       data: {
-        topic:       'Economic Inflation Trends',
-        summary:     'Analysis of inflation rates and consumer price indices in Bangladesh.',
-        sentiment:   'critical',
+        topic: "Economic Inflation Trends",
+        summary:
+          "Analysis of inflation rates and consumer price indices in Bangladesh.",
+        sentiment: "critical",
         articleCount: 1,
-        isEmerging:  false,
+        isEmerging: false,
       },
     });
   }
 
-  console.log('[Seed] Clusters verified/created');
+  console.log("[Seed] Clusters verified/created");
 
   // ── Scraped Headlines ──────────────────────────────────────────────────────
   const headlines = [
-    { headline: 'Fuel oil prices set to decline at consumer level', url: 'https://prothomalo.com/fuel-prices',      source: 'PROTHOM_ALO', clusterId: cluster1.id },
-    { headline: 'Inflation eases slightly in March',                url: 'https://thedailystar.net/inflation-march', source: 'DAILY_STAR',  clusterId: cluster2?.id },
-    { headline: 'New energy policy focuses on renewables',          url: 'https://dhakatribune.com/energy-policy',   source: 'DHAKA_TRIBUNE', clusterId: cluster1.id },
-    { headline: 'Dhaka temperature hits record 40 degrees',         url: 'https://jugantor.com/heatwave',             source: 'JUGANTOR' },
+    {
+      headline: "Fuel oil prices set to decline at consumer level",
+      url: "https://prothomalo.com/fuel-prices",
+      source: "PROTHOM_ALO",
+      clusterId: cluster1.id,
+    },
+    {
+      headline: "Inflation eases slightly in March",
+      url: "https://thedailystar.net/inflation-march",
+      source: "DAILY_STAR",
+      clusterId: cluster2?.id,
+    },
+    {
+      headline: "New energy policy focuses on renewables",
+      url: "https://dhakatribune.com/energy-policy",
+      source: "DHAKA_TRIBUNE",
+      clusterId: cluster1.id,
+    },
+    {
+      headline: "Dhaka temperature hits record 40 degrees",
+      url: "https://jugantor.com/heatwave",
+      source: "JUGANTOR",
+    },
   ];
 
   for (const h of headlines) {
@@ -112,25 +137,40 @@ async function main() {
     });
   }
 
-  console.log('[Seed] Headlines verified/created');
+  console.log("[Seed] Headlines verified/created");
 
   // ── Articles ───────────────────────────────────────────────────────────────
   const article = await prisma.article.upsert({
-    where: { slug: 'fueling-concerns-bangladesh-price-shifts' },
+    where: { slug: "fueling-concerns-bangladesh-price-shifts" },
     update: {},
     create: {
-      title:       'Fueling Concerns: How Bangladesh is Navigating Global Price Shifts',
-      slug:        'fueling-concerns-bangladesh-price-shifts',
-      body:        { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'The recent adjustment in fuel prices marks a pivotal shift...' }] }] },
-      excerpt:     'An in-depth look at the recent drop in fuel prices.',
-      status:      'PUBLISHED',
-      categoryId:  energy.id,
-      authorId:    admin.id,
-      tags:        ['bangladesh', 'fuel-prices', 'economy'],
-      angle:       'How fuel price adjustments affect local transportation costs.',
-      tone:        'ANALYTICAL',
-      metaTitle:   'Fuel Prices in Bangladesh: 2024 Policy Shifts',
-      metaDescription: 'Analysis of the new automatic fuel pricing formula and its impact on the economy.',
+      title:
+        "Fueling Concerns: How Bangladesh is Navigating Global Price Shifts",
+      slug: "fueling-concerns-bangladesh-price-shifts",
+      body: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              {
+                type: "text",
+                text: "The recent adjustment in fuel prices marks a pivotal shift...",
+              },
+            ],
+          },
+        ],
+      },
+      excerpt: "An in-depth look at the recent drop in fuel prices.",
+      status: "PUBLISHED",
+      categoryId: energy.id,
+      authorId: admin.id,
+      tags: ["bangladesh", "fuel-prices", "economy"],
+      angle: "How fuel price adjustments affect local transportation costs.",
+      tone: "ANALYTICAL",
+      metaTitle: "Fuel Prices in Bangladesh: 2024 Policy Shifts",
+      metaDescription:
+        "Analysis of the new automatic fuel pricing formula and its impact on the economy.",
       publishedAt: new Date(),
     },
   });
@@ -138,37 +178,67 @@ async function main() {
   await prisma.revision.create({
     data: {
       articleId: article.id,
-      authorId:  admin.id,
-      title:     'Fueling Concerns v1',
-      body:      { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Initial draft content...' }] }] },
+      authorId: admin.id,
+      title: "Fueling Concerns v1",
+      body: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "Initial draft content..." }],
+          },
+        ],
+      },
     },
   });
 
   console.log(`[Seed] Article verified/created: ${article.slug}`);
 
   // ── Selector Configs (Discovery Engine) ────────────────────────────────────
+  // These selectors define how to scrape each news source for different categories
   const selectorConfigs = [
-    {
-      sourceName: 'DAILY_STAR',
-      urlSlug:    'https://www.thedailystar.net/tags/{query}',
-      selector:   'h3.card-title a',
-      category:   'Search',
-      isActive:   true,
-    },
-    {
-      sourceName: 'PROTHOM_ALO',
-      urlSlug:    'https://www.prothomalo.com/search?q={query}',
-      selector:   'a.title-link',
-      category:   'Search',
-      isActive:   true,
-    },
-    {
-      sourceName: 'DHAKA_TRIBUNE',
-      urlSlug:    'https://www.dhakatribune.com/topic/{query}',
-      selector:   'a.link_overlay',
-      category:   'Search',
-      isActive:   true,
-    },
+    // ─── SEARCH (Query-based targeting) ───────────────────────────────────
+    { sourceName: "PROTHOM_ALO",   category: "Search", urlSlug: "https://www.prothomalo.com/search?q={query}", selector: ".md-story-title, h3 a, .headline, article h2, article h3", isActive: true },
+    { sourceName: "DAILY_STAR",    category: "Search", urlSlug: "https://www.thedailystar.net/search?t={query}", selector: "h3.title a, h2.title a, .field-content a, h3 a", isActive: true },
+    { sourceName: "BDNEWS24",      category: "Search", urlSlug: "https://www.bdnews24.com/search?q={query}", selector: "h3 a, h2 a, .title a, .field-content a", isActive: true },
+    { sourceName: "DHAKA_TRIBUNE", category: "Search", urlSlug: "https://www.dhakatribune.com/search?q={query}", selector: "h2.title a, h3.title a, .news_title a, h2 a", isActive: true },
+    { sourceName: "JUGANTOR",      category: "Search", urlSlug: "https://www.jugantor.com/search?q={query}", selector: "h3 a, h2 a, .title a, .headline a", isActive: true },
+    { sourceName: "ITTEFAQ",       category: "Search", urlSlug: "https://www.ittefaq.com.bd/search?q={query}", selector: "h2 a, h3 a, .title a, .news-title a", isActive: true },
+
+    // ─── GENERAL (Homepage/Front-page crawl) ──────────────────────────────
+    { sourceName: "PROTHOM_ALO",   category: "General", urlSlug: "https://www.prothomalo.com", selector: "h3 span, .headline, .md-story-title, article h2, article h3", isActive: true },
+    { sourceName: "DAILY_STAR",    category: "General", urlSlug: "https://www.thedailystar.net", selector: "h3.title a, h1.title a, .field-content a, h2.title a", isActive: true },
+    { sourceName: "BDNEWS24",      category: "General", urlSlug: "https://www.bdnews24.com", selector: "h3 a, h2 a, .title a, .field-content a", isActive: true },
+    { sourceName: "DHAKA_TRIBUNE", category: "General", urlSlug: "https://www.dhakatribune.com", selector: "h2.title a, h3.title a, .news_title a, h2 a", isActive: true },
+    { sourceName: "JUGANTOR",      category: "General", urlSlug: "https://www.jugantor.com", selector: "h3 a, h2 a, .title a, .headline a", isActive: true },
+    { sourceName: "ITTEFAQ",       category: "General", urlSlug: "https://www.ittefaq.com.bd", selector: "h2 a, h3 a, .title a, .news-title a", isActive: true },
+
+    // ─── CATEGORY-SPECIFIC ───────────────────────────────────────────────
+    // Politics
+    { sourceName: "PROTHOM_ALO",   category: "politics", urlSlug: "https://www.prothomalo.com/politics", selector: ".headline, h3 span, .md-story-title", isActive: true },
+    { sourceName: "DAILY_STAR",    category: "politics", urlSlug: "https://www.thedailystar.net/news/politics", selector: "h3.title a, h2.title a", isActive: true },
+    { sourceName: "DHAKA_TRIBUNE", category: "politics", urlSlug: "https://www.dhakatribune.com/bangladesh/politics", selector: "h2.title a, h3.title a", isActive: true },
+
+    // Business/Finance
+    { sourceName: "PROTHOM_ALO",   category: "business", urlSlug: "https://www.prothomalo.com/business", selector: ".headline, h3 span, .md-story-title", isActive: true },
+    { sourceName: "DAILY_STAR",    category: "business", urlSlug: "https://www.thedailystar.net/business", selector: "h3.title a, h2.title a", isActive: true },
+    { sourceName: "PROTHOM_ALO",   category: "finance", urlSlug: "https://www.prothomalo.com/business", selector: ".headline, h3 span, .md-story-title", isActive: true },
+    { sourceName: "DAILY_STAR",    category: "finance", urlSlug: "https://www.thedailystar.net/business", selector: "h3.title a, h2.title a", isActive: true },
+    { sourceName: "DHAKA_TRIBUNE", category: "finance", urlSlug: "https://www.dhakatribune.com/business", selector: "h2.title a, h3.title a", isActive: true },
+
+    // Sports
+    { sourceName: "PROTHOM_ALO",   category: "sports", urlSlug: "https://www.prothomalo.com/sports", selector: ".headline, h3 span, .md-story-title", isActive: true },
+    { sourceName: "DAILY_STAR",    category: "sports", urlSlug: "https://www.thedailystar.net/sports", selector: "h3.title a, h2.title a", isActive: true },
+    { sourceName: "DHAKA_TRIBUNE", category: "sports", urlSlug: "https://www.dhakatribune.com/sport", selector: "h2.title a, h3.title a", isActive: true },
+
+    // Technology
+    { sourceName: "DAILY_STAR",    category: "technology", urlSlug: "https://www.thedailystar.net/science-technology", selector: "h3.title a, h2.title a", isActive: true },
+    { sourceName: "DHAKA_TRIBUNE", category: "technology", urlSlug: "https://www.dhakatribune.com/technology", selector: "h2.title a, h3.title a", isActive: true },
+
+    // International/World News
+    { sourceName: "PROTHOM_ALO",   category: "international", urlSlug: "https://www.prothomalo.com/international", selector: ".headline, h3 span, .md-story-title", isActive: true },
+    { sourceName: "DAILY_STAR",    category: "international", urlSlug: "https://www.thedailystar.net/bangladesh/world", selector: "h3.title a, h2.title a", isActive: true },
+    { sourceName: "DHAKA_TRIBUNE", category: "international", urlSlug: "https://www.dhakatribune.com/world", selector: "h2.title a, h3.title a", isActive: true },
   ];
 
   for (const config of selectorConfigs) {
@@ -176,11 +246,11 @@ async function main() {
       where: {
         sourceName_category: {
           sourceName: config.sourceName,
-          category:   config.category,
+          category: config.category,
         },
       },
       update: {
-        urlSlug:  config.urlSlug,
+        urlSlug: config.urlSlug,
         selector: config.selector,
         isActive: config.isActive,
       },
@@ -188,10 +258,15 @@ async function main() {
     });
   }
 
-  console.log('[Seed] Discovery SelectorConfigs initialized');
-  console.log('[Seed] ✅ Done!');
+  console.log("[Seed] Discovery SelectorConfigs initialized");
+  console.log("[Seed] ✅ Done!");
 }
 
 main()
-  .catch((e) => { console.error(e); process.exit(1); })
-  .finally(async () => { await prisma.$disconnect(); });
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

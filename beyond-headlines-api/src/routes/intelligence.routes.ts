@@ -88,11 +88,29 @@ router.get('/status/:id', async (req, res) => {
  *         description: List of trending clusters
  */
 router.get('/trending', async (req, res) => {
-  const { category } = req.query;
+  const { category, query } = req.query;
   
   const where: any = {};
   if (category) {
     where.category = category as string;
+  }
+
+  if (query && typeof query === 'string' && query.trim().length > 0) {
+    const tokens = query
+      .toLowerCase()
+      .split(/\W+/)
+      .map((t) => t.trim())
+      .filter((t) => t.length >= 4)
+      .slice(0, 8);
+
+    if (tokens.length > 0) {
+      where.OR = [
+        { topic: { contains: query as string, mode: 'insensitive' } },
+        { summary: { contains: query as string, mode: 'insensitive' } },
+        ...tokens.map((token) => ({ topic: { contains: token, mode: 'insensitive' as const } })),
+        ...tokens.map((token) => ({ summary: { contains: token, mode: 'insensitive' as const } })),
+      ];
+    }
   }
 
   const clusters = await db.cluster.findMany({

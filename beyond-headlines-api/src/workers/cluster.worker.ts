@@ -32,17 +32,14 @@ const clusterWorker = new Worker(
       };
       const interval = timeframeMap[timeframe] || '7 days';
 
-      // Using Prisma.sql with Inclusive Category + Robust Search (Fix: Multiple queries)
+      // Using ILIKE for simple case-insensitive substring search (more reliable than TSVector)
       rawHeadlines = await db.$queryRawUnsafe(`
         SELECT id, headline, url, source, category, "scrapedAt"
         FROM "ScrapedHeadline"
         WHERE 
           "clusterId" IS NULL 
           AND "category" IN ($1, 'General')
-          AND (
-            to_tsvector('english', "headline") @@ websearch_to_tsquery('english', $2)
-            OR to_tsvector('english', "headline") @@ plainto_tsquery('english', $2)
-          )
+          AND "headline" ILIKE '%' || $2 || '%'
           AND "scrapedAt" > NOW() - INTERVAL '${interval}'
         ORDER BY "scrapedAt" DESC
         LIMIT 200

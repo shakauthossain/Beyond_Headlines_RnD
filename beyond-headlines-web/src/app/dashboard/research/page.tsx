@@ -136,6 +136,58 @@ function ResearchContent() {
         )}
       </div>
 
+      {/* Deep Research Capability Strip */}
+      <div className="mb-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h2 className="text-sm font-black uppercase tracking-widest text-slate-700">What Deep Research Will Do</h2>
+          <span className="text-[10px] font-black uppercase tracking-wider text-red-600 bg-red-50 border border-red-100 px-2 py-1 rounded">
+            Step 3 Scope
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="flex items-center mb-2">
+              <Database size={14} className="text-blue-600 mr-2" />
+              <p className="text-xs font-black uppercase tracking-wide text-slate-700">Source Sweep</p>
+            </div>
+            <p className="text-xs text-slate-600 font-medium leading-relaxed">
+              Pulls recent reporting across local and international outlets tied to your selected angle.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="flex items-center mb-2">
+              <CheckCircle2 size={14} className="text-emerald-600 mr-2" />
+              <p className="text-xs font-black uppercase tracking-wide text-slate-700">Credibility Check</p>
+            </div>
+            <p className="text-xs text-slate-600 font-medium leading-relaxed">
+              Ranks evidence quality and flags whether signals are high-confidence or developing.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="flex items-center mb-2">
+              <History size={14} className="text-amber-600 mr-2" />
+              <p className="text-xs font-black uppercase tracking-wide text-slate-700">Timeline Build</p>
+            </div>
+            <p className="text-xs text-slate-600 font-medium leading-relaxed">
+              Constructs a chronological event map so causal shifts and inflection points are explicit.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="flex items-center mb-2">
+              <Brain size={14} className="text-purple-600 mr-2" />
+              <p className="text-xs font-black uppercase tracking-wide text-slate-700">Synthesis Brief</p>
+            </div>
+            <p className="text-xs text-slate-600 font-medium leading-relaxed">
+              Produces a newsroom-ready brief with key data points, unresolved gaps, and next questions.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {sessions.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 flex flex-col items-center text-center max-w-2xl mx-auto">
           {isPolling ? (

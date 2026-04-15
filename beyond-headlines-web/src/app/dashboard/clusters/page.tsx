@@ -16,6 +16,37 @@ const TIMEFRAMES = [
   { value: 'any', label: 'Anytime' }
 ];
 
+const STOPWORDS = new Set([
+  'the', 'and', 'for', 'with', 'from', 'that', 'this', 'have', 'has', 'were', 'was', 'are', 'will', 'into',
+  'about', 'after', 'before', 'among', 'under', 'over', 'says', 'said', 'report', 'reports', 'news', 'killed',
+  'dead', 'injured', 'update', 'latest', 'today', 'yesterday', 'breaking', 'their', 'there', 'than', 'been'
+]);
+
+const extractQueryKeywords = (text: string) =>
+  text
+    .toLowerCase()
+    .split(/\W+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 4 && !STOPWORDS.has(t));
+
+const isClusterRelevantToQuery = (cluster: TopicCluster, queryText: string) => {
+  const queryKeywords = extractQueryKeywords(queryText);
+  if (queryKeywords.length === 0) return true;
+
+  const content = `${cluster.topic || ''} ${cluster.summary || ''}`.toLowerCase();
+
+  const matched = queryKeywords.filter((token) => content.includes(token));
+  const uniqueMatches = new Set(matched).size;
+  const overlapRatio = uniqueMatches / queryKeywords.length;
+
+  // Require stronger alignment to avoid unrelated cards passing via generic words.
+  if (queryKeywords.length <= 3) {
+    return uniqueMatches >= 1 && overlapRatio >= 0.5;
+  }
+
+  return uniqueMatches >= 2 || overlapRatio >= 0.4;
+};
+
 export default function ClustersPage() {
   const [clusters, setClusters] = useState<TopicCluster[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,14 +78,14 @@ export default function ClustersPage() {
 
   const [discoveryStatus, setDiscoveryStatus] = useState<any>("STARTED");
 
-  const fetchClusters = async (quiet = false, category: string | null = null) => {
+  const fetchClusters = async (quiet = false, category: string | null = null, topicQuery: string = '') => {
     if (!quiet) setIsLoading(true);
     else setIsRefreshing(true);
 
     setError("");
     try {
       const response = await api.get("/intelligence/trending", {
-        params: { category }
+        params: { category, query: topicQuery || undefined }
       });
       setClusters(response.data.data);
     } catch (err: any) {
@@ -71,15 +102,18 @@ export default function ClustersPage() {
   const pollStatus = async (jobId: string) => {
     try {
       const response = await api.get(`/search/status/${jobId}`);
-      const { status, isFinished, results } = response.data.data;
+      const { status, isFinished } = response.data.data;
 
       setDiscoveryStatus(status);
+
+      // Keep feed warm while clustering so editors see early clusters as soon as they are persisted.
+      await fetchClusters(true, intentParams.category, currentScanQuery);
 
       if (isFinished) {
         setScanComplete(true);
         setIsScanning(false);
         // Refresh feed with the category we just scanned to ensure we see the new clusters
-        await fetchClusters(true, intentParams.category); 
+        await fetchClusters(true, intentParams.category, currentScanQuery);
       } else {
         setTimeout(() => pollStatus(jobId), 2000);
       }
@@ -128,7 +162,7 @@ export default function ClustersPage() {
           // Instant resolution if cached
           setScanComplete(true);
           setIsScanning(false);
-          await fetchClusters(true);
+          await fetchClusters(true, intentParams.category, currentScanQuery);
       } else {
           pollStatus(jobId);
       }
@@ -143,24 +177,20 @@ export default function ClustersPage() {
   }, []);
 
   const filteredClusters = clusters.filter((c) => {
-    const termMatch =
-      c.topic.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.summary.toLowerCase().includes(searchTerm.toLowerCase());
+    const topic = (c.topic || '').toLowerCase();
+    const summary = (c.summary || '').toLowerCase();
 
-    // Fix 4: Relevance Suppression (Keyword Overlap)
+    const termMatch =
+      topic.includes(searchTerm.toLowerCase()) ||
+      summary.includes(searchTerm.toLowerCase());
+
+    if (!termMatch) return false;
+
     if (currentScanQuery && currentScanQuery.trim() !== "") {
-      const queryTokens = currentScanQuery
-        .toLowerCase()
-        .split(/\W+/)
-        .filter((t) => t.length > 3); // Ignore small words like 'on', 'the', 'us'
-      
-      const content = (c.topic + " " + c.summary).toLowerCase();
-      const hasOverlap = queryTokens.some((token) => content.includes(token));
-      
-      return termMatch && hasOverlap;
+      return isClusterRelevantToQuery(c, currentScanQuery);
     }
 
-    return termMatch;
+    return true;
   });
 
   const handleCreateArticle = (clusterId: string) => {

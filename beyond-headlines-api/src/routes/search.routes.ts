@@ -108,10 +108,10 @@ router.get('/status/:jobId', async (req, res) => {
     const results = await db.$queryRawUnsafe(`
       SELECT id, source, headline, url, category, "scrapedAt" as "scrapedAt"
       FROM "ScrapedHeadline"
-      WHERE 
-        (headline_tsv @@ websearch_to_tsquery('english', $1)
-         OR headline_tsv @@ plainto_tsquery('english', $1))
-        AND category = $2
+      WHERE
+        "clusterId" IS NULL
+        AND "category" IN ($2, 'General')
+        AND "headline" ILIKE '%' || $1 || '%'
         AND "scrapedAt" > NOW() - INTERVAL '${interval}'
       ORDER BY "scrapedAt" DESC
       LIMIT 100

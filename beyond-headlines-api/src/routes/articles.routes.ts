@@ -8,6 +8,10 @@ import {
   generateOutline, 
   inlineAssist, 
   generateCounterpoint, 
+  completeSectionsDraft,
+  conversationalRewrite,
+  completeSingleSection,
+  rewriteSingleSection,
   subEditArticle, 
   scoreHeadlines,
   generatePackaging 
@@ -169,25 +173,121 @@ router.post('/:id/autosave', authenticate, validate(revisionCreateSchema), async
  *     tags: [Articles]
  */
 router.post('/:id/assist', authenticate, async (req, res) => {
-  const { mode, text } = req.body;
-  const article = await db.article.findUnique({ where: { id: req.params.id } });
-  if (!article) return notFound(res, 'Article not found');
+  try {
+    const { mode, text, prompt, sectionTitle, sectionNote, sectionBody } = req.body;
+    const article = await db.article.findUnique({ where: { id: req.params.id } });
+    if (!article) return notFound(res, 'Article not found');
 
-  let result;
-  switch (mode) {
-    case 'outline':
-      result = await generateOutline(article.angle || '', article.tone || 'ANALYTICAL');
-      break;
-    case 'assist':
-      result = await inlineAssist(text, article.tone || 'ANALYTICAL');
-      break;
-    case 'counterpoint':
-      result = await generateCounterpoint(text);
-      break;
-    default:
-      return res.status(400).json({ message: 'Invalid assist mode' });
+    if ((mode === 'assist' || mode === 'counterpoint' || mode === 'complete_sections' || mode === 'conversational')
+      && (!text || typeof text !== 'string' || !text.trim())) {
+      return res.status(400).json({ message: 'Please select text before running this assist action.' });
+    }
+
+    if (mode === 'complete_section' && (!sectionTitle || typeof sectionTitle !== 'string')) {
+      return res.status(400).json({ message: 'sectionTitle is required for section completion.' });
+    }
+
+    if (mode === 'rewrite_section' && (!sectionTitle || !sectionBody || !prompt)) {
+      return res.status(400).json({ message: 'sectionTitle, sectionBody and prompt are required for section rewrite.' });
+    }
+
+    if (mode === 'conversational' && (!prompt || typeof prompt !== 'string' || !prompt.trim())) {
+      return res.status(400).json({ message: 'Prompt is required for conversational rewrite.' });
+    }
+
+    const latestResearch = await db.researchSession.findFirst({
+      where: { articleId: req.params.id },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const sources = Array.isArray(latestResearch?.sources) ? (latestResearch?.sources as any[]) : [];
+    const timeline = Array.isArray(latestResearch?.timeline) ? (latestResearch?.timeline as any[]) : [];
+    const dataPoints = Array.isArray(latestResearch?.dataPoints) ? (latestResearch?.dataPoints as any[]) : [];
+
+    const sourceHints = sources
+      .map((s: any) => (typeof s?.url === 'string' ? s.url : typeof s?.title === 'string' ? s.title : null))
+      .filter(Boolean) as string[];
+
+    const timelineHints = timeline
+      .slice(0, 5)
+      .map((t: any) => `${t?.date || 'N/A'}: ${t?.event || ''}`)
+      .join('\n');
+
+    const dataPointHints = dataPoints
+      .slice(0, 5)
+      .map((d: any) => `${d?.metric || 'Metric'} = ${d?.value || 'N/A'} (${d?.context || 'context'})`)
+      .join('\n');
+
+    const researchContext = [
+      latestResearch?.angle ? `Research Angle: ${latestResearch.angle}` : '',
+      timelineHints ? `Timeline:\n${timelineHints}` : '',
+      dataPointHints ? `Data Points:\n${dataPointHints}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    let result;
+    switch (mode) {
+      case 'outline':
+        result = await generateOutline(
+          [article.angle || article.title || '', researchContext].filter(Boolean).join('\n\n'),
+          article.tone || 'ANALYTICAL',
+          sourceHints,
+        );
+        break;
+      case 'assist':
+        result = await inlineAssist(text, article.tone || 'ANALYTICAL');
+        break;
+      case 'counterpoint':
+        result = await generateCounterpoint(text);
+        break;
+      case 'complete_sections':
+        result = await completeSectionsDraft(text, article.tone || 'ANALYTICAL');
+        break;
+      case 'conversational':
+        result = await conversationalRewrite(text, prompt, article.tone || 'ANALYTICAL');
+        break;
+      case 'complete_section':
+        result = await completeSingleSection(
+          sectionTitle,
+          typeof sectionNote === 'string' ? sectionNote : '',
+          typeof sectionBody === 'string' ? sectionBody : '',
+          article.tone || 'ANALYTICAL',
+          researchContext,
+        );
+        break;
+      case 'rewrite_section':
+        result = await rewriteSingleSection(
+          sectionTitle,
+          sectionBody,
+          prompt,
+          article.tone || 'ANALYTICAL',
+        );
+        break;
+      default:
+        return res.status(400).json({ message: 'Invalid assist mode' });
+    }
+    return ok(res, result);
+  } catch (err: any) {
+    console.error('[Articles Route] /assist failed:', err?.message || err);
+
+    // Keep the editor usable even when model output is malformed.
+    if (req.body?.mode === 'outline') {
+      const fallback = {
+        sections: [
+          { label: 'What Happened', direction: 'Summarize the latest development in 3-4 crisp lines.' },
+          { label: 'Why It Matters', direction: 'Explain impact on Bangladesh households, prices, and policy.' },
+          { label: 'Key Evidence', direction: 'Add strongest data points, dates, and source-backed facts.' },
+          { label: 'Counterview', direction: 'Present the strongest competing interpretation fairly.' },
+          { label: 'What Comes Next', direction: 'Close with realistic scenarios and what to monitor next.' },
+        ],
+        generatedAt: new Date().toISOString(),
+      };
+      return ok(res, fallback);
+    }
+
+    return res.status(502).json({ message: 'AI assist temporarily unavailable. Please retry.' });
   }
-  return ok(res, result);
 });
 
 /**

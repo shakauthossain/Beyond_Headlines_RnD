@@ -16,11 +16,11 @@ const discoveryWorker = new Worker(
       // 1. Mark status as STARTED in Redis
       await redis.set(`discovery:status:${job.id}`, 'STARTED', 'EX', 3600);
 
-      // 2. Trigger fresh local scrape for all sources
-      console.log(`[DiscoveryWorker] Triggering broad local scrape...`);
-      // We pass 'General' so the scraper hits the broad front-pages of all news platforms
-      // to ensure we capture news that spans across multiple standard sections.
-      const scrapeJob = await triggerScrapeJob(undefined, 'General');
+      // 2. Trigger targeted scrape for the actual query across all sources
+      console.log(`[DiscoveryWorker] Triggering targeted scrape for query: "${query}" (Category: ${category})...`);
+      // Pass the query and category to scraper so it performs search-based scraping
+      // instead of generic front-page crawling
+      const scrapeJob = await triggerScrapeJob(query, category);
       
       queueEvents = new QueueEvents('scrape', { connection: redis });
       await scrapeJob.waitUntilFinished(queueEvents);

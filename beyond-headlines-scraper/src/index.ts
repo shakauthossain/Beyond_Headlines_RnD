@@ -66,12 +66,24 @@ async function scrapeSources(category: string, jobId: string, searchSlug?: strin
       let html = await response.text();
       const $ = cheerio.load(html);
       
+      // Debug: Count matched elements before processing
+      const matchedCount = $(config.selector).length;
+      console.log(`[Scraper v6] ${config.sourceName} selector matched ${matchedCount} elements from: ${config.selector}`);
+      
       $(config.selector).each((_, el) => {
         const headlineText = $(el).text().trim();
         let href = $(el).attr('href');
         
         if (!href && $(el).is('a')) href = $(el).attr('href');
         if (!href) href = $(el).closest('a').attr('href');
+
+        // Debug: Show why headlines are being filtered
+        if (headlineText.length < 20) {
+          if (headlineText.length > 0) {
+            console.warn(`[Scraper v6] ${config.sourceName}: Skipped short headline "${headlineText.substring(0, 40)}..." (length: ${headlineText.length})`);
+          }
+          return; // Skip
+        }
 
         if (headlineText && headlineText.length > 20) {
           let absoluteUrl = href || finalUrl;
@@ -160,9 +172,10 @@ const worker = new Worker(
 
     console.log(`[Worker] Persisting ${headlines.length} unique headlines safely to Database...`);
     let count = 0;
+    const targetIds: string[] = [];
     for (const h of headlines) {
       try {
-        await db.scrapedHeadline.upsert({
+        const saved = await db.scrapedHeadline.upsert({
           where: { url: h.url },
           update: { 
             headline: h.headline, 
@@ -177,13 +190,34 @@ const worker = new Worker(
             category: h.category
           }
         });
+        targetIds.push(saved.id);
         count++;
       } catch (e: any) {
         console.error(`[Worker] Upsert error: ${e.message}`);
       }
     }
 
-    // 5. Fallback Trigger: If local results are low, trigger Perplexity discovery
+    // 5. Dispatch clustering for the newly scraped rows so dashboard gets clusters.
+    if (targetIds.length > 0) {
+      const clusterQueue = new Queue('cluster', { connection: redis });
+      const params = job.data.params || {};
+      await clusterQueue.add(
+        'run-clustering',
+        {
+          originalJobId: job.id,
+          category,
+          targetIds,
+          query,
+          params,
+        },
+        {
+          removeOnComplete: true,
+          jobId: `cluster-${job.id}`,
+        },
+      );
+    }
+
+    // 6. Fallback Trigger: If local results are low, trigger Perplexity discovery
     if (count < 5 && job.data.params) {
       console.log(`[Worker] Low results (${count}). Triggering Perplexity fallback...`);
       const discoveryQueue = new Queue('discovery', { connection: redis });
