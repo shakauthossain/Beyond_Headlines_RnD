@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { articles } from '../data/mockData';
 import { authenticate, requireAdmin } from '../middleware/auth';
 import { ok, notFound, prePublishError, forbidden } from '../utils/response';
 import { PublishService } from '../services/publish.service';
+import { db } from '../db/client';
 
 const router = Router();
 
@@ -14,13 +14,17 @@ const router = Router();
  *     tags: [Publish — Step 7]
  */
 router.post('/:articleId', authenticate, async (req, res) => {
-  const index = articles.findIndex(a => a.id === req.params.articleId);
-  if (index === -1) return notFound(res, 'Article not found');
-  
+  const article = await db.article.findUnique({ where: { id: req.params.articleId } });
+  if (!article) return notFound(res, 'Article not found');
+
   const result = await PublishService.publish(req.params.articleId);
-  articles[index].status = 'PUBLISHED';
-  articles[index].publishedAt = result.publishedAt;
-  return ok(res, articles[index]);
+
+  const updated = await db.article.update({
+    where: { id: req.params.articleId },
+    data: { status: 'PUBLISHED', publishedAt: result.publishedAt },
+  });
+
+  return ok(res, updated);
 });
 
 /**
@@ -30,12 +34,12 @@ router.post('/:articleId', authenticate, async (req, res) => {
  *     summary: Submit an article for review
  *     tags: [Publish — Step 7]
  */
-router.post('/:articleId/submit-review', authenticate, (req, res) => {
-  const index = articles.findIndex(a => a.id === req.params.articleId);
-  if (index === -1) return notFound(res, 'Article not found');
-  
-  articles[index].status = 'PENDING_REVIEW';
-  return ok(res, articles[index]);
+router.post('/:articleId/submit-review', authenticate, async (req, res) => {
+  const article = await db.article.findUnique({ where: { id: req.params.articleId } });
+  if (!article) return notFound(res, 'Article not found');
+
+  const updated = await db.article.update({ where: { id: req.params.articleId }, data: { status: 'PENDING_REVIEW' } });
+  return ok(res, updated);
 });
 
 /**
@@ -46,13 +50,15 @@ router.post('/:articleId/submit-review', authenticate, (req, res) => {
  *     tags: [Publish — Step 7]
  */
 router.post('/:articleId/approve', requireAdmin, async (req, res) => {
-  const index = articles.findIndex(a => a.id === req.params.articleId);
-  if (index === -1) return notFound(res, 'Article not found');
-  
+  const article = await db.article.findUnique({ where: { id: req.params.articleId } });
+  if (!article) return notFound(res, 'Article not found');
+
   const result = await PublishService.publish(req.params.articleId);
-  articles[index].status = 'PUBLISHED';
-  articles[index].publishedAt = result.publishedAt;
-  return ok(res, articles[index]);
+  const updated = await db.article.update({
+    where: { id: req.params.articleId },
+    data: { status: 'PUBLISHED', publishedAt: result.publishedAt },
+  });
+  return ok(res, updated);
 });
 
 /**
@@ -62,12 +68,12 @@ router.post('/:articleId/approve', requireAdmin, async (req, res) => {
  *     summary: Reject an article back to draft
  *     tags: [Publish — Step 7]
  */
-router.post('/:articleId/reject', requireAdmin, (req, res) => {
-  const index = articles.findIndex(a => a.id === req.params.articleId);
-  if (index === -1) return notFound(res, 'Article not found');
-  
-  articles[index].status = 'DRAFT';
-  return ok(res, { ...articles[index], notes: req.body.notes });
+router.post('/:articleId/reject', requireAdmin, async (req, res) => {
+  const article = await db.article.findUnique({ where: { id: req.params.articleId } });
+  if (!article) return notFound(res, 'Article not found');
+
+  const updated = await db.article.update({ where: { id: req.params.articleId }, data: { status: 'DRAFT' } });
+  return ok(res, { ...updated, notes: req.body.notes });
 });
 
 /**
@@ -77,8 +83,8 @@ router.post('/:articleId/reject', requireAdmin, (req, res) => {
  *     summary: Pending review queue
  *     tags: [Publish — Step 7]
  */
-router.get('/queue', authenticate, (req, res) => {
-  const queue = articles.filter(a => a.status === 'PENDING_REVIEW');
+router.get('/queue', authenticate, async (req, res) => {
+  const queue = await db.article.findMany({ where: { status: 'PENDING_REVIEW' }, orderBy: { updatedAt: 'desc' } });
   return ok(res, queue);
 });
 
@@ -89,11 +95,13 @@ router.get('/queue', authenticate, (req, res) => {
  *     summary: Pre-publish checklist status
  *     tags: [Publish — Step 7]
  */
-router.get('/checklist/:articleId', authenticate, (req, res) => {
-  const article = articles.find(a => a.id === req.params.articleId);
+router.get('/checklist/:articleId', authenticate, async (req, res) => {
+  const article = await db.article.findUnique({ where: { id: req.params.articleId } });
   if (!article) return notFound(res, 'Article not found');
 
-  const missing = PublishService.validateChecklist(article);
+  // Normalize fields expected by PublishService (convert `tags` -> `tagIds`)
+  const normalized = { ...article, tagIds: (article as any).tags ?? [] } as any;
+  const missing = PublishService.validateChecklist(normalized);
 
   if (missing.length > 0) return prePublishError(res, missing);
   return ok(res, { status: 'READY_TO_PUBLISH' });
