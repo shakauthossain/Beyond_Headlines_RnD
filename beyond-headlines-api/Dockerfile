@@ -8,7 +8,9 @@ COPY package*.json ./
 
 # ── Stage 2: Development ─────────────────────────────────────────────────────
 FROM base AS development
-RUN npm install
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-maxtimeout 60000 && \
+    npm install
 COPY . .
 RUN npx prisma generate
 EXPOSE 8000
@@ -16,7 +18,9 @@ CMD ["npm", "run", "dev"]
 
 # ── Stage 3: Builder ─────────────────────────────────────────────────────────
 FROM base AS builder
-RUN npm install
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-maxtimeout 60000 && \
+    npm install
 COPY . .
 RUN npx prisma generate
 RUN npm run build
@@ -27,7 +31,9 @@ RUN apk add --no-cache openssl libc6-compat
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-maxtimeout 60000 && \
+    npm install --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma

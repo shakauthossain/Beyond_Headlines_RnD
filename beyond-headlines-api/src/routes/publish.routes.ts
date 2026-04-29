@@ -11,7 +11,24 @@ const router = Router();
  * /publish/{articleId}:
  *   post:
  *     summary: Direct publish an article
- *     tags: [Publish — Step 7]
+ *     tags: [Step 07 - Publishing]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - in: path
+ *         name: articleId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *             required: [email]
  */
 router.post('/:articleId', authenticate, async (req, res) => {
   const article = await db.article.findUnique({ where: { id: req.params.articleId } });
@@ -32,7 +49,24 @@ router.post('/:articleId', authenticate, async (req, res) => {
  * /publish/{articleId}/submit-review:
  *   post:
  *     summary: Submit an article for review
- *     tags: [Publish — Step 7]
+ *     tags: [Step 07 - Publishing]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - in: path
+ *         name: articleId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *             required: [email]
  */
 router.post('/:articleId/submit-review', authenticate, async (req, res) => {
   const article = await db.article.findUnique({ where: { id: req.params.articleId } });
@@ -47,7 +81,7 @@ router.post('/:articleId/submit-review', authenticate, async (req, res) => {
  * /publish/{articleId}/approve:
  *   post:
  *     summary: Admin approves and publishes article
- *     tags: [Publish — Step 7]
+ *     tags: [Step 07 - Publishing]
  */
 router.post('/:articleId/approve', requireAdmin, async (req, res) => {
   const article = await db.article.findUnique({ where: { id: req.params.articleId } });
@@ -66,7 +100,7 @@ router.post('/:articleId/approve', requireAdmin, async (req, res) => {
  * /publish/{articleId}/reject:
  *   post:
  *     summary: Reject an article back to draft
- *     tags: [Publish — Step 7]
+ *     tags: [Step 07 - Publishing]
  */
 router.post('/:articleId/reject', requireAdmin, async (req, res) => {
   const article = await db.article.findUnique({ where: { id: req.params.articleId } });
@@ -81,7 +115,11 @@ router.post('/:articleId/reject', requireAdmin, async (req, res) => {
  * /publish/queue:
  *   get:
  *     summary: Pending review queue
- *     tags: [Publish — Step 7]
+ *     tags: [Step 07 - Publishing]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/emailParam'
  */
 router.get('/queue', authenticate, async (req, res) => {
   const queue = await db.article.findMany({ where: { status: 'PENDING_REVIEW' }, orderBy: { updatedAt: 'desc' } });
@@ -93,7 +131,7 @@ router.get('/queue', authenticate, async (req, res) => {
  * /publish/checklist/{articleId}:
  *   get:
  *     summary: Pre-publish checklist status
- *     tags: [Publish — Step 7]
+ *     tags: [Step 07 - Publishing]
  */
 router.get('/checklist/:articleId', authenticate, async (req, res) => {
   const article = await db.article.findUnique({ where: { id: req.params.articleId } });

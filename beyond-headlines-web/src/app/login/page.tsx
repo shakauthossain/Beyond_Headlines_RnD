@@ -17,12 +17,19 @@ export default function LoginPage() {
     setError('');
     setIsSubmitting(true);
 
+    // In the new model, we just identify as the provided email.
+    // The X-API-Token (shared secret) handles the actual security at the API level.
     try {
-      const response = await api.post('/auth/login', { email, password });
-      const { token, user } = response.data.data;
-      login(token, user);
+      const user = {
+        email,
+        name: email.split('@')[0],
+        role: 'EDITOR' // Default role for local identity
+      };
+      
+      // We don't have a JWT token anymore, so we pass a placeholder or null
+      login('service-auth-identity', user as any);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Invalid email or password');
+      setError('Could not establish identity');
     } finally {
       setIsSubmitting(false);
     }
@@ -35,7 +42,7 @@ export default function LoginPage() {
           Beyond Headlines
         </h2>
         <p className="mt-2 text-center text-sm text-slate-600">
-          Sign in to the editorial dashboard
+          Enter your editorial email to access the dashboard
         </p>
       </div>
 
@@ -64,27 +71,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700">
-                Password
-              </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-4 w-4 text-slate-400" />
-                </div>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 sm:text-sm border-slate-300 rounded-md focus:ring-red-500 focus:border-red-500 border p-2 text-slate-700"
-                />
-              </div>
-            </div>
-
             {error && (
               <div className="text-red-600 text-sm bg-red-50 p-2 rounded border border-red-100">
                 {error}
@@ -100,7 +86,7 @@ export default function LoginPage() {
                 {isSubmitting ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
-                  'Sign In'
+                  'Access Dashboard'
                 )}
               </button>
             </div>

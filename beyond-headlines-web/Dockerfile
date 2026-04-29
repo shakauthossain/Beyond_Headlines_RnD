@@ -2,7 +2,9 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-maxtimeout 60000 && \
+    npm install
 
 # ── Stage 1.5: Development ──────────────────────────────────────────────────
 FROM node:20-alpine AS development

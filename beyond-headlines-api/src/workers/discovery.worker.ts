@@ -7,7 +7,14 @@ import { triggerScrapeJob } from './queue';
 const discoveryWorker = new Worker(
   'discovery',
   async (job) => {
-    const { query, category = 'General', timeframe = 'past 48 hours', region = 'Bangladesh' } = job.data;
+    const {
+      query,
+      category = 'General',
+      timeframe = 'past 48 hours',
+      region = 'Bangladesh',
+      searchSlug = '',
+      refinedQuery = '',
+    } = job.data;
     console.log(`[DiscoveryWorker] Starting hybrid discovery for query: "${query}" (Cat: ${category}, Time: ${timeframe}, Region: ${region})`);
 
     let queueEvents: QueueEvents | null = null;
@@ -20,7 +27,7 @@ const discoveryWorker = new Worker(
       console.log(`[DiscoveryWorker] Triggering targeted scrape for query: "${query}" (Category: ${category})...`);
       // Pass the query and category to scraper so it performs search-based scraping
       // instead of generic front-page crawling
-      const scrapeJob = await triggerScrapeJob(query, category);
+      const scrapeJob = await triggerScrapeJob(query, category, { searchSlug, refinedQuery, timeframe, region });
       
       queueEvents = new QueueEvents('scrape', { connection: redis });
       await scrapeJob.waitUntilFinished(queueEvents);
@@ -82,7 +89,10 @@ const discoveryWorker = new Worker(
       await clusterQueue.add('run-clustering', {
         originalJobId: job.id,
         category: category, 
-        targetIds: targetIds 
+        targetIds: targetIds,
+        query,
+        searchSlug,
+        refinedQuery,
       }, {
         removeOnComplete: true,
         jobId: `cluster-${job.id}`,

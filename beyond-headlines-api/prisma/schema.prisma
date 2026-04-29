@@ -7,17 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String    @id @default(uuid())
-  email     String    @unique
-  name      String
-  role      UserRole  @default(EDITOR)
-  password  String
-  avatar    String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  articles  Article[]
-}
 
 model Category {
   id       String     @id @default(uuid())
@@ -47,26 +36,28 @@ model Article {
   metaTitle        String?
   metaDescription  String?
   bannerImage      String?
+  subEditReport    Json?
+  headlineScores   Json?
+  packaging        Json?
   tags             String[]
   publishedAt      DateTime?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
-  authorId         String
+  authorEmail      String            @map("author_email")
   categoryId       String?
-  author           User              @relation(fields: [authorId], references: [id])
   category         Category?         @relation(fields: [categoryId], references: [id])
   researchSessions ResearchSession[]
   revisions        Revision[]
 }
 
 model Revision {
-  id        String   @id @default(uuid())
-  body      Json
-  title     String
-  savedAt   DateTime @default(now())
-  articleId String
-  authorId  String
-  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid())
+  body        Json
+  title       String
+  savedAt     DateTime @default(now())
+  articleId   String
+  authorEmail String   @map("author_email")
+  article     Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
 }
 
 model ScrapedHeadline {
@@ -92,6 +83,7 @@ model Cluster {
   sentiment    String
   articleCount Int               @default(0) @map("article_count")
   isEmerging   Boolean           @default(false) @map("is_emerging")
+  brief        Json?
   createdAt    DateTime          @default(now())
   headlines    ScrapedHeadline[]
 }
@@ -131,11 +123,6 @@ enum Tone {
   EXPLANATORY
 }
 
-enum UserRole {
-  ADMIN
-  EDITOR
-}
-
 enum Source {
   PROTHOM_ALO
   DAILY_STAR
@@ -157,6 +144,22 @@ model SelectorConfig {
   createdAt      DateTime  @default(now())
 
   @@unique([sourceName, category])
+}
+
+model SourceLanguageMapping {
+  id                String   @id @default(uuid())
+  source            String   @unique
+  bengaliDomain     String
+  englishDomain     String
+  languageStrategy  String   @default("ENGLISH_FIRST") // ENGLISH_FIRST, BENGALI_FIRST, ENGLISH_ONLY, BENGALI_ONLY
+  hasEnglishEdition Boolean  @default(true)
+  fallbackEnabled   Boolean  @default(true)
+  isActive          Boolean  @default(true)
+  description       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([source])
 }
 
 model AlertLog {

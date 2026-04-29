@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 // Step 2 & 3: Research
 export const topicBriefSchema = z.object({
+  email: z.string().email(),
   clusterId: z.string(),
 });
 
@@ -22,6 +23,7 @@ export const topicBriefResponseSchema = z.object({
 });
 
 export const researchGenerateSchema = z.object({
+  email: z.string().email(),
   articleId: z.string(),
   angle: z.string().optional(),
 });
@@ -52,6 +54,7 @@ export const researchResponseSchema = z.object({
 
 // Step 4: Drafting
 export const outlineSchema = z.object({
+  email: z.string().email(),
   articleId: z.string(),
   angle: z.string().optional(),
   tone: z.enum(['ANALYTICAL', 'CRITICAL', 'EXPLANATORY']).default('ANALYTICAL'),
@@ -59,6 +62,7 @@ export const outlineSchema = z.object({
 });
 
 export const inlineAssistSchema = z.object({
+  email: z.string().email(),
   articleId: z.string(),
   paragraph: z.string(),
   tone: z.enum(['ANALYTICAL', 'CRITICAL', 'EXPLANATORY']).default('ANALYTICAL'),
@@ -72,6 +76,7 @@ export const inlineAssistResponseSchema = z.object({
 });
 
 export const counterpointSchema = z.object({
+  email: z.string().email(),
   articleId: z.string(),
   paragraph: z.string(),
 });
@@ -127,6 +132,7 @@ export const packagingResponseSchema = z.object({
 });
 
 export const simpleArticleIdSchema = z.object({
+  email: z.string().email(),
   articleId: z.string(),
 });
 

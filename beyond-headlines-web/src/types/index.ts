@@ -35,7 +35,7 @@ export interface Article {
   status: ArticleStatus;
   categoryId?: string;
   category?: Category;
-  authorId: string;
+  authorEmail: string;
   author?: User;
   tags: string[];
   bannerImage?: string;

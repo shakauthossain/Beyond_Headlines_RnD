@@ -153,22 +153,25 @@ const worker = new Worker(
     let category = 'General';
     let query = '';
     let searchSlug = '';
+    let refinedQuery = '';
 
     // Handle payload structural changes generically
     if (job.data.params) {
       category = job.data.params.category;
       query = job.data.params.refinedQuery || job.data.query; // Use refined query if available
       searchSlug = job.data.params.searchSlug;
+      refinedQuery = job.data.params.refinedQuery || '';
     } else {
       category = job.data.category || 'General';
       query = job.data.query || '';
       searchSlug = job.data.searchSlug || '';
+      refinedQuery = job.data.refinedQuery || '';
     }
 
     console.log(`[Worker] Processing job: ${job.id} | Slug: ${searchSlug || 'None'} | Query: ${query || 'baseline'}`);
     
     // Targeted Search-First Scrape (Hybrid Mode)
-    let headlines = await scrapeSources(category, String(job.id), searchSlug, query);
+    let headlines = await scrapeSources(category, String(job.id), searchSlug, refinedQuery || query);
 
     console.log(`[Worker] Persisting ${headlines.length} unique headlines safely to Database...`);
     let count = 0;
@@ -228,6 +231,8 @@ const worker = new Worker(
         category,
         timeframe,
         region,
+        searchSlug,
+        refinedQuery: refinedQuery || job.data.query,
         originalJobId: job.id
       }, { removeOnComplete: true });
     }

@@ -1,63 +1,60 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifyToken } from '../utils/jwt';
-import { unauthorized, forbidden } from '../utils/response';
-import { db } from '../db/client';
-import { User } from '../types';
+import { unauthorized, badRequest } from '../utils/response';
 
 declare global {
   namespace Express {
-    interface Request {
-      user?: User;
+    interface Response {
+      locals: {
+        laravelUserEmail?: string;
+      };
     }
   }
 }
 
+/**
+ * Unified Service-to-Service Authentication Middleware (Laravel → API)
+ * 
+ * Required on every request:
+ * 1. Header: X-API-Token (hardcoded secret shared with Laravel)
+ * 2. Payload: email (user identifier) — prioritized from body, fallback to query
+ * 
+ * Response will automatically include the email field via response helpers.
+ */
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) {
-    return unauthorized(res);
+  // 1. Validate API token in header
+  const apiToken = req.headers['x-api-token'] as string;
+  const expectedToken = process.env.LARAVEL_API_TOKEN || '';
+
+  if (!apiToken || apiToken !== expectedToken) {
+    return unauthorized(res, 'Invalid or missing API token');
   }
 
-  const token = authHeader.split(' ')[1];
-  try {
-    const payload = verifyToken(token) as { email: string };
-    const user = await db.user.findUnique({
-      where: { email: payload.email },
+  // 2. Extract email from request body or query (for GET compatibility)
+  const email = (req.body as any)?.email || (req.query as any)?.email;
+
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({
+      error: 'Email is required in request body or query parameter',
+      code: 'MISSING_EMAIL',
     });
-    
-    if (!user) {
-      return unauthorized(res);
-    }
-
-    // Remove password
-    const { password, ...userWithoutPassword } = user;
-    req.user = userWithoutPassword as User;
-    next();
-  } catch (error) {
-    return unauthorized(res);
-  }
-};
-
-export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.user) {
-    return unauthorized(res);
   }
 
-  if (req.user.role !== 'ADMIN') {
-    return forbidden(res);
+  // 3. Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({
+      error: 'Invalid email format',
+      code: 'INVALID_EMAIL',
+    });
   }
+
+  // Store in res.locals so response helpers can include it in all responses
+  res.locals.laravelUserEmail = email;
 
   next();
 };
 
-export const requireEditorOrAdmin = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.user) {
-    return unauthorized(res);
-  }
-
-  if (req.user.role !== 'ADMIN' && req.user.role !== 'EDITOR') {
-    return forbidden(res);
-  }
-
-  next();
-};
+// Aliases for compatibility with existing route definitions, 
+// though roles are now managed on the Laravel side.
+export const requireEditorOrAdmin = authenticate;
+export const requireAdmin = authenticate;

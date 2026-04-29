@@ -37,7 +37,21 @@ const getArticleBody = async (articleId: string) => {
  * /ai/outline:
  *   post:
  *     summary: Generate an article outline (Claude Sonnet)
- *     tags: [AI — Step 4: Drafting]
+ *     tags: [Step 04 - Drafting]
+ *     security:
+ *       - apiToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               articleId: { type: string }
+ *               angle: { type: string }
+ *               tone: { type: string, enum: [ANALYTICAL, CRITICAL, EXPLANATORY] }
+ *             required: [email, articleId]
  */
 router.post('/outline', authenticate, validate(outlineSchema), async (req, res) => {
   const result = await generateOutline(req.body.angle ?? '', req.body.tone ?? 'ANALYTICAL', req.body.sources);
@@ -49,7 +63,21 @@ router.post('/outline', authenticate, validate(outlineSchema), async (req, res) 
  * /ai/inline-assist:
  *   post:
  *     summary: Improve a paragraph inline (Claude Sonnet)
- *     tags: [AI — Step 4: Drafting]
+ *     tags: [Step 04 - Drafting]
+ *     security:
+ *       - apiToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               articleId: { type: string }
+ *               paragraph: { type: string }
+ *               tone: { type: string, enum: [ANALYTICAL, CRITICAL, EXPLANATORY] }
+ *             required: [email, articleId, paragraph]
  */
 router.post('/inline-assist', authenticate, validate(inlineAssistSchema), async (req, res) => {
   const result = await inlineAssist(req.body.paragraph, req.body.tone ?? 'ANALYTICAL');
@@ -61,7 +89,20 @@ router.post('/inline-assist', authenticate, validate(inlineAssistSchema), async 
  * /ai/counterpoint:
  *   post:
  *     summary: Steelman the opposing position (Claude Sonnet)
- *     tags: [AI — Step 4: Drafting]
+ *     tags: [Step 04 - Drafting]
+ *     security:
+ *       - apiToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               articleId: { type: string }
+ *               paragraph: { type: string }
+ *             required: [email, articleId, paragraph]
  */
 router.post('/counterpoint', authenticate, validate(counterpointSchema), async (req, res) => {
   const result = await generateCounterpoint(req.body.paragraph);
@@ -73,7 +114,19 @@ router.post('/counterpoint', authenticate, validate(counterpointSchema), async (
  * /ai/sub-edit:
  *   post:
  *     summary: Full sub-edit analysis (Claude Sonnet)
- *     tags: [AI — Step 5: Sub-editing]
+ *     tags: [Step 05 - Sub-editing]
+ *     security:
+ *       - apiToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               articleId: { type: string }
+ *             required: [email, articleId]
  */
 router.post('/sub-edit', authenticate, validate(simpleArticleIdSchema), async (req, res) => {
   const data = await getArticleBody(req.body.articleId);
@@ -87,7 +140,19 @@ router.post('/sub-edit', authenticate, validate(simpleArticleIdSchema), async (r
  * /ai/seo-metadata:
  *   post:
  *     summary: Generate SEO metadata (Claude Haiku)
- *     tags: [AI — Step 5: Sub-editing]
+ *     tags: [Step 05 - Sub-editing]
+ *     security:
+ *       - apiToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               articleId: { type: string }
+ *             required: [email, articleId]
  */
 router.post('/seo-metadata', authenticate, validate(simpleArticleIdSchema), async (req, res) => {
   const data = await getArticleBody(req.body.articleId);
@@ -101,7 +166,19 @@ router.post('/seo-metadata', authenticate, validate(simpleArticleIdSchema), asyn
  * /ai/score-headlines:
  *   post:
  *     summary: Score up to 3 headlines (Claude Sonnet)
- *     tags: [AI — Step 5: Sub-editing]
+ *     tags: [Step 05 - Sub-editing]
+ *     security:
+ *       - apiToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               headlines: { type: array, items: { type: string }, maxItems: 3 }
+ *             required: [email, headlines]
  */
 router.post('/score-headlines', authenticate, validate(headlineScoreSchema), async (req, res) => {
   const result = await scoreHeadlines(req.body.headlines);
@@ -113,7 +190,19 @@ router.post('/score-headlines', authenticate, validate(headlineScoreSchema), asy
  * /ai/packaging:
  *   post:
  *     summary: Full packaging suite (Claude Haiku)
- *     tags: [AI — Step 6: Packaging]
+ *     tags: [Step 06 - Packaging]
+ *     security:
+ *       - apiToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               articleId: { type: string }
+ *             required: [email, articleId]
  */
 router.post('/packaging', authenticate, validate(simpleArticleIdSchema), async (req, res) => {
   const data = await getArticleBody(req.body.articleId);
@@ -127,7 +216,19 @@ router.post('/packaging', authenticate, validate(simpleArticleIdSchema), async (
  * /ai/image-concept:
  *   post:
  *     summary: Image concept only (Claude Haiku)
- *     tags: [AI — Step 6: Packaging]
+ *     tags: [Step 06 - Packaging]
+ *     security:
+ *       - apiToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               articleId: { type: string }
+ *             required: [email, articleId]
  */
 router.post('/image-concept', authenticate, validate(simpleArticleIdSchema), async (req, res) => {
   const data = await getArticleBody(req.body.articleId);
@@ -141,7 +242,19 @@ router.post('/image-concept', authenticate, validate(simpleArticleIdSchema), asy
  * /ai/social-captions:
  *   post:
  *     summary: Social captions only (Claude Haiku)
- *     tags: [AI — Step 6: Packaging]
+ *     tags: [Step 06 - Packaging]
+ *     security:
+ *       - apiToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               articleId: { type: string }
+ *             required: [email, articleId]
  */
 router.post('/social-captions', authenticate, validate(simpleArticleIdSchema), async (req, res) => {
   const data = await getArticleBody(req.body.articleId);
@@ -155,7 +268,19 @@ router.post('/social-captions', authenticate, validate(simpleArticleIdSchema), a
  * /ai/pull-quotes:
  *   post:
  *     summary: Pull quotes only (Claude Haiku)
- *     tags: [AI — Step 6: Packaging]
+ *     tags: [Step 06 - Packaging]
+ *     security:
+ *       - apiToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               articleId: { type: string }
+ *             required: [email, articleId]
  */
 router.post('/pull-quotes', authenticate, validate(simpleArticleIdSchema), async (req, res) => {
   const data = await getArticleBody(req.body.articleId);

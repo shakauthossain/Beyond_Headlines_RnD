@@ -29,6 +29,8 @@ const openrouter = new OpenAI({
   },
 });
 
+const normalizeWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim();
+
 // ── Core call wrapper ────────────────────────────────────────────────────────
 // Handles: model call → strip markdown fences → JSON.parse → Zod validate
 // Retries once with stricter instruction on validation failure
@@ -198,23 +200,29 @@ export async function clusterHeadlines(
   headlines: string[],
   category: string = 'General'
 ): Promise<z.infer<typeof clusterOutputSchema>> {
-  const cacheKey = makeKey('cluster', `${category}:${headlines.sort().join('|')}`);
+  const normalizedHeadlines = headlines.map(normalizeWhitespace);
+  const cacheKey = makeKey('cluster', `${category}:${normalizedHeadlines.slice().sort().join('|')}`);
   const cached   = await getCached<z.infer<typeof clusterOutputSchema>>(cacheKey);
   if (cached) return cached;
 
   const result = await callModel(
     config.claudeHaikuModel,
-    `You are an expert editorial analyst specializing in ${category} news. 
-     Your goal is to group headlines into distinct, narrative-driven clusters.
-     
+    `You are an expert editorial analyst specializing in ${category} news.
+     Your goal is to group multilingual headlines into distinct, narrative-driven clusters.
+
+     IMPORTANT:
+     - The input may contain Bengali or English headlines.
+     - Understand the meaning of either language directly.
+     - Return the cluster topics and summaries in clear English.
+
      STRICT RULES:
      1. Do NOT use generic category names as topics (e.g., avoid "National News", "Politics", "General").
-     2. Create highly specific topics based on the actual content (e.g., "Fury vs Usyk Heavyweight Unification", "Election Reform Protests in Dhaka").
+     2. Create highly specific topics based on the actual content.
      3. If headlines are completely unrelated to ${category}, group them into a "Miscellaneous" cluster.
      4. Focus on the most recent and impactful narratives.
-     
+
      Return ONLY a JSON array.`,
-    `Headlines:\n${headlines.map((h, i) => `${i}. ${h}`).join('\n')}\n\nReturn structure: [{"topic":"string","summary":"string","sentiment":"critical|neutral|supportive","article_count":number,"is_emerging":boolean,"indices":[number]}]`,
+    `Headlines:\n${normalizedHeadlines.map((h, i) => `${i}. ${h}`).join('\n')}\n\nReturn structure: [{"topic":"string","summary":"string","sentiment":"critical|neutral|supportive","article_count":number,"is_emerging":boolean,"indices":[number]}]`,
     clusterOutputSchema,
     4000,
   );
@@ -264,9 +272,18 @@ export async function synthesizeDeepIntelligence(
 ): Promise<string> {
   if (articles.length === 0) return "No deep content available.";
 
+  const normalizedQuery = normalizeWhitespace(query);
+  const normalizedTopic = normalizeWhitespace(topic);
+  const normalizedArticles = articles.map((article) => ({
+    headline: normalizeWhitespace(article.headline),
+    content: normalizeWhitespace(article.content),
+  }));
+
   const system = `You are an elite intelligence analyst for "Beyond Headlines." 
-Your task is to synthesize a high-fidelity intelligence summary for the topic: "${topic}".
-You are given the full body content of the top 3 most relevant articles discovered for the query: "${query}".
+Your task is to synthesize a high-fidelity intelligence summary for the topic: "${normalizedTopic}".
+You are given the full body content of the top 3 most relevant articles discovered for the query: "${normalizedQuery}".
+
+The input may contain Bengali or English text. Understand both directly and produce the final summary in clear English.
 
 Focus on:
 1. HARD FACTS: Specific names, dates, percentages, and dollar amounts.
@@ -275,7 +292,7 @@ Focus on:
 
 Format as a concise 3-paragraph intelligence briefing. Do NOT use markdown headers.`;
 
-  const user = `Full Article Contexts:\n\n${articles.map((a, i) => `ARTICLE ${i+1}: ${a.headline}\nCONTENT: ${a.content.substring(0, 3000)}`).join('\n\n---\n\n')}`;
+  const user = `Full Article Contexts:\n\n${normalizedArticles.map((a, i) => `ARTICLE ${i+1}: ${a.headline}\nCONTENT: ${a.content.substring(0, 3000)}`).join('\n\n---\n\n')}`;
 
   const response = await openrouter.chat.completions.create({
     model: config.claudeHaikuModel, 
@@ -382,10 +399,13 @@ export async function generateTopicBrief(
   clusterSummary: string,
   headlines: string[],
 ): Promise<TopicBriefResponse> {
+  const normalizedClusterSummary = normalizeWhitespace(clusterSummary);
+  const normalizedHeadlines = headlines.map(normalizeWhitespace);
+
   return callModel(
     config.claudeSonnetModel,
     'You are a senior editorial analyst producing structured briefing documents for journalists. Return ONLY valid JSON.',
-    `Cluster summary: ${clusterSummary}\n\nHeadlines:\n${headlines.join('\n')}\n\nReturn: {"issue_summary":"string","key_questions":["string"],"stakeholders":[{"name":"string","role":"string"}],"viewpoints":["string"],"suggested_angles":[{"title":"string","reasoning":"string","target_audience":"string"}],"generatedAt":"ISO string"}`,
+    `Cluster summary: ${normalizedClusterSummary}\n\nHeadlines:\n${normalizedHeadlines.join('\n')}\n\nThe input may contain Bengali or English text. Understand both directly and return the briefing in clear English.\n\nReturn: {"issue_summary":"string","key_questions":["string"],"stakeholders":[{"name":"string","role":"string"}],"viewpoints":["string"],"suggested_angles":[{"title":"string","reasoning":"string","target_audience":"string"}],"generatedAt":"ISO string"}`,
     topicBriefResponseSchema,
     4000,
   );
@@ -614,6 +634,24 @@ export async function generateSEOMetadata(
     `Title: ${title}\n\nFirst 200 words: ${excerpt}\n\nReturn: {"meta_title":"string","meta_description":"150 chars max","tags":["string"],"generatedAt":"ISO string"}`,
     seoMetadataResponseSchema,
     400,
+  );
+}
+
+export async function generatePackaging(
+  title: string,
+  bodyText: string,
+): Promise<PackagingResponse> {
+  return callModel(
+    config.claudeHaikuModel,
+    'You are a packaging editor. Generate concise image concepts, pull quotes, and social captions for the article. Return ONLY valid JSON.',
+    `Title: ${title}
+
+Article body:
+${bodyText}
+
+Return: {"image_concept":"string","pull_quotes":[{"quote":"string","paragraph_index":0}],"social_captions":{"twitter":"string","linkedin":"string","whatsapp":"string"},"generatedAt":"ISO string"}`,
+    packagingResponseSchema,
+    1000,
   );
 }
 

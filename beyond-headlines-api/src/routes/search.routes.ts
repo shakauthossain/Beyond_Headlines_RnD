@@ -12,7 +12,17 @@ const router = Router();
  * /search/intent:
  *   post:
  *     summary: Classify free-text query into strict scrape parameters
- *     tags: [Search]
+ *     tags: [Step 01 - Search]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/SearchIntentRequest'
  */
 router.post('/intent', async (req, res) => {
   try {
@@ -34,7 +44,26 @@ router.post('/intent', async (req, res) => {
  * /search/run:
  *   post:
  *     summary: Enqueue intent-driven scrape job
- *     tags: [Search]
+ *     tags: [Step 01 - Search]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               query: { type: string }
+ *               category: { type: string }
+ *               region: { type: string }
+ *               timeframe: { type: string }
+ *               searchSlug: { type: string }
+ *               refinedQuery: { type: string }
+ *             required: [email, query, category, region, timeframe, searchSlug, refinedQuery]
  */
   router.post('/run', async (req, res) => {
   try {
@@ -57,6 +86,16 @@ router.post('/intent', async (req, res) => {
  *   get:
  *     summary: Get search job status and results
  *     tags: [Search]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
+ *       - $ref: '#/components/parameters/emailParam'
+ *       - in: path
+ *         name: jobId
+ *         required: true
+ *         schema:
+ *           type: string
  */
 router.get('/status/:jobId', async (req, res) => {
   try {
@@ -94,8 +133,11 @@ router.get('/status/:jobId', async (req, res) => {
     }
 
     // Both are finished, retrieve filtered results from DB
-    const { query, params } = job.data;
-    const { category, timeframe } = params;
+    const jobData = job.data || {};
+    const params = jobData.params || jobData;
+    const query = jobData.query || params.query;
+    const category = params.category || jobData.category || 'General';
+    const timeframe = params.timeframe || jobData.timeframe || 'last_week';
 
     const timeframeMap: Record<string, string> = {
       'last_24h': '24 hours',

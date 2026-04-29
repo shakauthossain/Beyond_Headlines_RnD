@@ -3,7 +3,7 @@ import { triggerDiscoveryJob } from '../workers/queue';
 import { ok, badRequest } from '../utils/response';
 import { db } from '../db/client';
 import { redis } from '../redis/client';
-import { categorizeQuery } from '../services/ai.service';
+import { extractSearchIntent } from '../services/ai.service';
 
 const router = Router();
 
@@ -12,15 +12,24 @@ const router = Router();
  * /intelligence/scan:
  *   post:
  *     summary: Trigger an on-demand news intelligence scan
- *     tags: [Intelligence — Step 1]
+ *     tags: [Step 01 - Intelligence]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
  *     requestBody:
+ *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
  *             properties:
- *               query:
- *                 type: string
+ *               email: { type: string, format: email }
+ *               query: { type: string }
+ *               timeframe: { type: string }
+ *               region: { type: string }
+ *               forceCategory: { type: string }
+ *             required: [email, query]
  *     responses:
  *       200:
  *         description: Scan triggered with jobId
@@ -31,13 +40,21 @@ router.post('/scan', async (req, res) => {
   const { query, timeframe, region, forceCategory } = req.body;
   if (!query) return badRequest(res, 'Search query is required');
 
-  // If the user forced a category, use it. Otherwise, let Claude auto-detect.
-  let category = forceCategory && forceCategory !== 'Auto-detect' 
-    ? forceCategory 
-    : await categorizeQuery(query);
+  const intent = await extractSearchIntent(query);
+  const category = forceCategory && forceCategory !== 'Auto-detect'
+    ? forceCategory
+    : intent.category;
+
+  const scanParams = {
+    category,
+    region: region || intent.region,
+    timeframe: timeframe || intent.timeframe,
+    searchSlug: intent.searchSlug,
+    refinedQuery: intent.refinedQuery,
+  };
   
   // Trigger the new Perplexity Sonar discovery job, passing constraints down
-  const job = await triggerDiscoveryJob(query, category, timeframe, region);
+  const job = await triggerDiscoveryJob(query, scanParams);
   
   // Initialize status in Redis
   await redis.set(`discovery:status:${job.id}`, 'STARTED', 'EX', 3600);
@@ -46,7 +63,9 @@ router.post('/scan', async (req, res) => {
     message: `Intelligence discovery for ${category} triggered successfully`, 
     jobId:   job.id,
     query,
-    category
+    category,
+    searchSlug: intent.searchSlug,
+    refinedQuery: intent.refinedQuery,
   });
 });
 
@@ -55,8 +74,12 @@ router.post('/scan', async (req, res) => {
  * /intelligence/status/{id}:
  *   get:
  *     summary: Check the status of a discovery scan
- *     tags: [Intelligence — Step 1]
+ *     tags: [Step 01 - Intelligence]
+ *     security:
+ *       - apiToken: []
  *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
+ *       - $ref: '#/components/parameters/emailParam'
  *       - in: path
  *         name: id
  *         required: true
@@ -82,7 +105,18 @@ router.get('/status/:id', async (req, res) => {
  * /intelligence/trending:
  *   get:
  *     summary: Get top trending clusters
- *     tags: [Intelligence — Step 1]
+ *     tags: [Step 01 - Intelligence]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
+ *       - $ref: '#/components/parameters/emailParam'
+ *       - in: query
+ *         name: category
+ *         schema: { type: string }
+ *       - in: query
+ *         name: query
+ *         schema: { type: string }
  *     responses:
  *       200:
  *         description: List of trending clusters

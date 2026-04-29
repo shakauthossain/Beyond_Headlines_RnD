@@ -14,7 +14,21 @@ const router = Router();
  * /research/topic-brief:
  *   post:
  *     summary: Generate an AI topic brief (Claude Sonnet)
- *     tags: [Research — Steps 2 & 3]
+ *     tags: [Step 02 & 03 - Research]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               clusterId: { type: string }
+ *             required: [email, clusterId]
  */
 router.post('/topic-brief', authenticate, validate(topicBriefSchema), async (req, res) => {
   const cluster = await db.cluster.findUnique({
@@ -23,8 +37,20 @@ router.post('/topic-brief', authenticate, validate(topicBriefSchema), async (req
   });
   if (!cluster) return notFound(res, 'Cluster not found');
 
+  // Return cached brief if available to ensure stability
+  if (cluster.brief) {
+    return ok(res, cluster.brief);
+  }
+
   const headlines = cluster.headlines.map((h: any) => h.headline);
   const result    = await generateTopicBrief(cluster.summary, headlines);
+
+  // Cache the brief in the database
+  await db.cluster.update({
+    where: { id: req.body.clusterId },
+    data:  { brief: result as any },
+  });
+
   return created(res, result);
 });
 
@@ -33,7 +59,17 @@ router.post('/topic-brief', authenticate, validate(topicBriefSchema), async (req
  * /research/generate:
  *   post:
  *     summary: Queue a full research session (Perplexity + Haiku)
- *     tags: [Research — Steps 2 & 3]
+ *     tags: [Step 02 & 03 - Research]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ResearchGenerateRequest'
  */
 router.post('/generate', authenticate, validate(researchGenerateSchema), async (req, res) => {
   const { articleId, angle } = req.body;
@@ -56,7 +92,16 @@ router.post('/generate', authenticate, validate(researchGenerateSchema), async (
  * /research/{articleId}:
  *   get:
  *     summary: All research sessions for an article
- *     tags: [Research — Steps 2 & 3]
+ *     tags: [Step 02 & 03 - Research]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/emailParam'
+ *       - in: path
+ *         name: articleId
+ *         required: true
+ *         schema:
+ *           type: string
  */
 router.get('/:articleId', authenticate, async (req, res) => {
   const sessions = await db.researchSession.findMany({
@@ -71,7 +116,16 @@ router.get('/:articleId', authenticate, async (req, res) => {
  * /research/session/{id}:
  *   get:
  *     summary: Get a single research session
- *     tags: [Research — Steps 2 & 3]
+ *     tags: [Step 02 & 03 - Research]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/emailParam'
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
  */
 router.get('/session/:id', authenticate, async (req, res) => {
   const session = await db.researchSession.findUnique({ where: { id: req.params.id } });

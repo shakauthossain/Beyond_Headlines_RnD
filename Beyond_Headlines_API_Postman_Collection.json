@@ -1,0 +1,855 @@
+{
+	"info": {
+		"_postman_id": "b9a5a5a5-a5a5-4a5a-8a5a-a5a5a5a5a5a5",
+		"name": "Beyond Headlines Editorial API (Official)",
+		"description": "REST API for the Beyond Headlines editorial platform. Generated from Swagger source of truth.\n\n**Authentication**:\nUnified service-to-service authentication is required for all requests:\n1. **Header**: `X-API-Token` (Hardcoded secret)\n2. **Payload**: `email` field (User identifier) must be present in the request body (or query string for GET requests).",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Step 01 - Intelligence & Discovery",
+			"item": [
+				{
+					"name": "Trigger Discovery Scan",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{user_email}}\",\n    \"query\": \"USA vs Iran news\",\n    \"timeframe\": \"last_week\",\n    \"region\": \"international\",\n    \"forceCategory\": \"international\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/intelligence/scan",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"intelligence",
+								"scan"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Check Scan Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/intelligence/status/:id?email={{user_email}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"intelligence",
+								"status",
+								":id"
+							],
+							"query": [
+								{
+									"key": "email",
+									"value": "{{user_email}}"
+								}
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "discovery-job-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Trending Clusters",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/intelligence/trending?email={{user_email}}&category=international",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"intelligence",
+								"trending"
+							],
+							"query": [
+								{
+									"key": "email",
+									"value": "{{user_email}}"
+								},
+								{
+									"key": "category",
+									"value": "international"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Step 01 - Clusters & Headlines",
+			"item": [
+				{
+					"name": "List Clusters",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/clusters?email={{user_email}}&emerging=false",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"clusters"
+							],
+							"query": [
+								{
+									"key": "email",
+									"value": "{{user_email}}"
+								},
+								{
+									"key": "emerging",
+									"value": "false"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Cluster Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/clusters/:id?email={{user_email}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"clusters",
+								":id"
+							],
+							"query": [
+								{
+									"key": "email",
+									"value": "{{user_email}}"
+								}
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "31788688-5b04-4cee-aaae-e69afada16ed"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Raw Headlines",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/clusters/headlines/raw?email={{user_email}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"clusters",
+								"headlines",
+								"raw"
+							],
+							"query": [
+								{
+									"key": "email",
+									"value": "{{user_email}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Step 02 & 03 - Research",
+			"item": [
+				{
+					"name": "Generate AI Topic Brief",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{user_email}}\",\n    \"clusterId\": \"31788688-5b04-4cee-aaae-e69afada16ed\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/research/topic-brief",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"research",
+								"topic-brief"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Queue Full Research Session",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{user_email}}\",\n    \"articleId\": \"article-uuid-here\",\n    \"angle\": \"The diplomatic impact of USA-Iran sanctions on South Asian energy markets.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/research/generate",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"research",
+								"generate"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Article Research Sessions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/research/:articleId?email={{user_email}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"research",
+								":articleId"
+							],
+							"query": [
+								{
+									"key": "email",
+									"value": "{{user_email}}"
+								}
+							],
+							"variable": [
+								{
+									"key": "articleId",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Step 04 - Drafting",
+			"item": [
+				{
+					"name": "Generate Outline",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{user_email}}\",\n    \"articleId\": \"article-id-here\",\n    \"angle\": \"Deep dive into Middle East stability\",\n    \"tone\": \"ANALYTICAL\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/ai/outline",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"ai",
+								"outline"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Inline Assist (Improve Paragraph)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{user_email}}\",\n    \"articleId\": \"article-id-here\",\n    \"paragraph\": \"The economic sanctions are having a big effect on the people living there.\",\n    \"tone\": \"EXPLANATORY\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/ai/inline-assist",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"ai",
+								"inline-assist"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Step 05 - Sub-editing",
+			"item": [
+				{
+					"name": "Full Sub-edit Analysis",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{user_email}}\",\n    \"articleId\": \"article-id-here\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/ai/sub-edit",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"ai",
+								"sub-edit"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Score Headlines",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{user_email}}\",\n    \"headlines\": [\n        \"Oil Prices Surge Amid Tensions\",\n        \"The Middle East Crises and Global Energy\",\n        \"How Sanctions Change Everything\"\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/ai/score-headlines",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"ai",
+								"score-headlines"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Generate SEO Metadata",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{user_email}}\",\n    \"articleId\": \"article-id-here\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/ai/seo-metadata",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"ai",
+								"seo-metadata"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Step 06 - Packaging",
+			"item": [
+				{
+					"name": "Full Packaging Suite",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{user_email}}\",\n    \"articleId\": \"article-id-here\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/ai/packaging",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"ai",
+								"packaging"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Image Concept Only",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{user_email}}\",\n    \"articleId\": \"article-id-here\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/ai/image-concept",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"ai",
+								"image-concept"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Social Captions Only",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{user_email}}\",\n    \"articleId\": \"article-id-here\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/ai/social-captions",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"ai",
+								"social-captions"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Articles Lifecycle",
+			"item": [
+				{
+					"name": "List Articles",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/articles?email={{user_email}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"articles"
+							],
+							"query": [
+								{
+									"key": "email",
+									"value": "{{user_email}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Article",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{user_email}}\",\n    \"title\": \"Sample Article Title\",\n    \"body\": \"<p>Rich text content here...</p>\",\n    \"excerpt\": \"Short summary...\",\n    \"angle\": \"Analytical deep dive\",\n    \"tone\": \"ANALYTICAL\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/articles",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"articles"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Article Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/articles/:id?email={{user_email}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"articles",
+								":id"
+							],
+							"query": [
+								{
+									"key": "email",
+									"value": "{{user_email}}"
+								}
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Search & Scrape Controls",
+			"item": [
+				{
+					"name": "Intent Classification",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{user_email}}\",\n    \"query\": \"Find news about Bangladesh economy\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/search/intent",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search",
+								"intent"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Trigger Intent Scrape",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{user_email}}\",\n    \"query\": \"Bangladesh economy\",\n    \"category\": \"economics\",\n    \"region\": \"BD\",\n    \"timeframe\": \"today\",\n    \"searchSlug\": \"bd-econ-101\",\n    \"refinedQuery\": \"current economic situation in Bangladesh 2024\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/search/run",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search",
+								"run"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin & Config",
+			"item": [
+				{
+					"name": "List Language Mappings",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Token",
+								"value": "{{api_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/admin/source-language-mappings?email={{user_email}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"source-language-mappings"
+							],
+							"query": [
+								{
+									"key": "email",
+									"value": "{{user_email}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000/api/v1",
+			"type": "string"
+		},
+		{
+			"key": "api_token",
+			"value": "beyond-headlines-secret-token-2024",
+			"type": "string"
+		},
+		{
+			"key": "user_email",
+			"value": "user@example.com",
+			"type": "string"
+		}
+	]
+}

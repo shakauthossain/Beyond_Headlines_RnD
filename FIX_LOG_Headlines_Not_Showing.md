@@ -6,6 +6,19 @@ The system was successfully scraping headlines from news sources (6 headlines we
 
 ---
 
+## ✅ Canonical Fix Flow
+
+Use this sequence when applying or re-checking the fix:
+
+1. Seed the database with the `Search` selector configs for every supported source.
+2. Rebuild or reseed the database so the scraper can read those configs.
+3. Make sure discovery passes the actual query, category, slug, and refined query into the scrape job.
+4. Let the scraper use the search selector set instead of a generic homepage crawl.
+5. Verify the cluster worker receives the targeted scrape output and creates clusters.
+6. Confirm the UI shows the resulting clusters and the status transitions to `SCRAPING_DONE` / `COMPLETED`.
+
+---
+
 ## Bug #1: Missing "Search" Category Selectors ❌ → ✅
 
 **Problem:** 
@@ -90,7 +103,9 @@ The system was successfully scraping headlines from news sources (6 headlines we
 
 ---
 
-## 🚀 How to Apply These Fixes
+## 🚀 Apply the Fix
+
+Follow the same sequence every time so the database, worker queue, and scraper stay aligned.
 
 ### Option 1: Rebuild Docker Images (Recommended)
 ```bash
@@ -127,22 +142,22 @@ ts-node prisma/seed.ts
 
 ## 📋 Testing After Fix
 
-1. **Search for "Strait of Hormuz":**
+1. **Trigger the scan**
    - POST `/intelligence/scan` with `{ "query": "Strait of Hormuz" }`
-   - Should return jobId
+   - Confirm the response includes a `jobId`, `category`, `searchSlug`, and `refinedQuery`.
 
-2. **Check discovery status:**
+2. **Watch the discovery status**
    - GET `/intelligence/status/{jobId}`
-   - Wait for status to become 'SCRAPING_DONE'
+   - Wait for the status to move through the scraping and clustering stages.
 
-3. **Fetch clusters:**
+3. **Fetch the clusters**
    - GET `/api/v1/clusters?emerging=false`
-   - Should show multiple clusters with headlines
+   - Confirm the response contains clusters with headlines.
 
-4. **Expect to see:**
-   - Headlines from Daily Star, Prothom Alo, Dhaka Tribune, etc.
-   - Proper full-text search matching
-   - Clusters grouped by topic (e.g., "Hormuz Strait Naval Tension", "Global Oil Supply Concerns", etc.)
+4. **Expected result**
+   - Headlines from Daily Star, Prothom Alo, Dhaka Tribune, and the other configured sources.
+   - Relevant topic clusters rather than generic homepage stories.
+   - A visible scan progression that ends in a completed state.
 
 ---
 
@@ -166,25 +181,25 @@ ts-node prisma/seed.ts
 
 ## ⚠️ If Issues Persist
 
-1. **Check if selectors are in DB:**
+1. **Check if selectors are in DB**
    ```sql
    SELECT sourceName, category, selector FROM SelectorConfig 
    WHERE category='Search' LIMIT 5;
    ```
    Should show 6 rows (one per source)
 
-2. **Check if headlines are actually saved:**
+2. **Check if headlines are actually saved**
    ```sql
    SELECT COUNT(*), category FROM ScrapedHeadline 
    GROUP BY category ORDER BY COUNT(*) DESC;
    ```
 
-3. **Check scraper logs for selector match issues:**
+3. **Check scraper logs for selector match issues**
    ```
    docker logs bh_worker_scrape | grep "selector matched"
    ```
 
-4. **Validate CSS selectors live:**
+4. **Validate CSS selectors live**
    - Open news site in browser
    - Right-click on a headline
    - Inspect element → Find CSS selector in DevTools

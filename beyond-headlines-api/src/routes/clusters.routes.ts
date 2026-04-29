@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { clusters, scrapedHeadlines } from '../data/mockData';
+import { db } from '../db/client';
 import { ok, notFound } from '../utils/response';
 
 const router = Router();
@@ -9,8 +9,12 @@ const router = Router();
  * /clusters:
  *   get:
  *     summary: List topic clusters
- *     tags: [Clusters — Step 1]
+ *     tags: [Step 01 - Clusters]
+ *     security:
+ *       - apiToken: []
  *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
+ *       - $ref: '#/components/parameters/emailParam'
  *       - in: query
  *         name: emerging
  *         schema:
@@ -19,11 +23,23 @@ const router = Router();
  *       200:
  *         description: List of clusters
  */
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const { emerging } = req.query;
-  let filtered = [...clusters];
-  if (emerging === 'true') filtered = filtered.filter((c: any) => c.is_emerging);
-  return ok(res, filtered);
+  
+  const where: any = {};
+  if (emerging === 'true') {
+    where.is_emerging = true;
+  }
+
+  const clusters = await db.cluster.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    include: {
+      headlines: true
+    }
+  });
+
+  return ok(res, clusters);
 });
 
 /**
@@ -31,8 +47,12 @@ router.get('/', (req, res) => {
  * /clusters/{id}:
  *   get:
  *     summary: Get cluster with headlines
- *     tags: [Clusters — Step 1]
+ *     tags: [Step 01 - Clusters]
+ *     security:
+ *       - apiToken: []
  *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
+ *       - $ref: '#/components/parameters/emailParam'
  *       - in: path
  *         name: id
  *         required: true
@@ -44,12 +64,16 @@ router.get('/', (req, res) => {
  *       404:
  *         description: Not found
  */
-router.get('/:id', (req, res) => {
-  const cluster = clusters.find(c => c.id === req.params.id);
+router.get('/:id', async (req, res) => {
+  const cluster = await db.cluster.findUnique({
+    where: { id: req.params.id },
+    include: {
+      headlines: true
+    }
+  });
+
   if (!cluster) return notFound(res, 'Cluster not found');
-  
-  const headlines = scrapedHeadlines.filter((h: any) => h.clusterId === cluster.id);
-  return ok(res, { ...cluster, headlines });
+  return ok(res, cluster);
 });
 
 /**
@@ -57,8 +81,12 @@ router.get('/:id', (req, res) => {
  * /clusters/headlines/raw:
  *   get:
  *     summary: Get raw scraped headlines
- *     tags: [Clusters — Step 1]
+ *     tags: [Step 01 - Clusters]
+ *     security:
+ *       - apiToken: []
  *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
+ *       - $ref: '#/components/parameters/emailParam'
  *       - in: query
  *         name: source
  *         schema:
@@ -67,11 +95,21 @@ router.get('/:id', (req, res) => {
  *       200:
  *         description: List of raw headlines
  */
-router.get('/headlines/raw', (req, res) => {
+router.get('/headlines/raw', async (req, res) => {
   const { source } = req.query;
-  let filtered = [...scrapedHeadlines];
-  if (source) filtered = filtered.filter((h: any) => h.source === source);
-  return ok(res, filtered);
+  
+  const where: any = {};
+  if (source) {
+    where.source = source as string;
+  }
+
+  const headlines = await db.scrapedHeadline.findMany({
+    where,
+    orderBy: { scrapedAt: 'desc' },
+    take: 100
+  });
+
+  return ok(res, headlines);
 });
 
 export default router;

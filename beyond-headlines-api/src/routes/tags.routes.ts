@@ -13,6 +13,10 @@ const router = Router();
  *   get:
  *     summary: List all tags
  *     tags: [Tags]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/emailParam'
  *     responses:
  *       200:
  *         description: List of tags
@@ -28,7 +32,18 @@ router.get('/', (req, res) => {
  *     summary: Create a tag
  *     tags: [Tags]
  *     security:
- *       - bearerAuth: []
+ *       - apiToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               name: { type: string }
+ *               slug: { type: string }
+ *             required: [email, name]
  *     responses:
  *       201:
  *         description: Tag created

@@ -7,13 +7,33 @@ const api = axios.create({
   },
 });
 
-// Interceptor to add JWT token to requests
+// Interceptor to add X-API-Token and inject email into requests
 api.interceptors.request.use(
   (config) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('bh_token') : null;
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // 1. Add the shared service-to-service token
+    const token = process.env.NEXT_PUBLIC_LARAVEL_API_TOKEN || 'beyond-headlines-secret-token-2024';
+    config.headers['X-API-Token'] = token;
+    
+    // 2. Inject the user email as the identity identifier
+    const userJson = typeof window !== 'undefined' ? localStorage.getItem('bh_user') : null;
+    if (userJson) {
+      try {
+        const user = JSON.parse(userJson);
+        const email = user.email;
+
+        if (email) {
+          if (config.method === 'get' || config.method === 'delete') {
+            config.params = { ...config.params, email };
+          } else {
+            // For POST, PUT, PATCH - add to body
+            config.data = { ...config.data, email };
+          }
+        }
+      } catch (e) {
+        console.error('Error parsing user from localStorage', e);
+      }
     }
+    
     return config;
   },
   (error) => {
@@ -21,18 +41,13 @@ api.interceptors.request.use(
   }
 );
 
-// Interceptor to handle unauthorized errors (redirect to login)
+// Interceptor to handle unauthorized errors
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('bh_token');
-        localStorage.removeItem('bh_user');
-        if (!window.location.pathname.startsWith('/login')) {
-          window.location.href = '/login';
-        }
-      }
+      console.error('Authentication failed: Invalid API Token or missing email identity');
+      // Optional: Redirect to identity page if identity is lost
     }
     return Promise.reject(error);
   }

@@ -1,16 +1,6 @@
 export type ArticleStatus = 'DRAFT' | 'PENDING_REVIEW' | 'PUBLISHED' | 'ARCHIVED';
 export type Tone = 'ANALYTICAL' | 'CRITICAL' | 'EXPLANATORY';
-export type UserRole = 'ADMIN' | 'EDITOR';
 export type Source = 'PROTHOM_ALO' | 'DAILY_STAR' | 'BDNEWS24' | 'JUGANTOR' | 'DHAKA_TRIBUNE';
-
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: UserRole;
-  avatar?: string;
-  password?: string;
-}
 
 export interface Category {
   id: string;
@@ -43,7 +33,7 @@ export interface Article {
   excerpt?: string;
   status: ArticleStatus;
   categoryId?: string;
-  authorId: string;
+  authorEmail: string;
   tagIds: string[];
   bannerImage?: string;
   angle?: string;
@@ -61,7 +51,7 @@ export interface ArticleRevision {
   body: any;
   title: string;
   createdAt: string;
-  authorId: string;
+  authorEmail: string;
 }
 
 export interface ScrapedHeadline {

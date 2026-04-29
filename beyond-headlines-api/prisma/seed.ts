@@ -1,38 +1,15 @@
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcrypt";
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log("[Seed] Seeding database...");
 
-  // ── Users ──────────────────────────────────────────────────────────────────
-  const adminPassword = await bcrypt.hash("password", 10);
-  const editorPassword = await bcrypt.hash("password", 10);
+  // ── Identities (Emails) ──────────────────────────────────────────────────
+  const adminEmail = "admin@beyondheadlines.com";
+  const editorEmail = "editor@beyondheadlines.com";
 
-  const admin = await prisma.user.upsert({
-    where: { email: "admin@beyondheadlines.com" },
-    update: {},
-    create: {
-      email: "admin@beyondheadlines.com",
-      name: "Zia Ahmed",
-      role: "ADMIN",
-      password: adminPassword,
-    },
-  });
-
-  const editor = await prisma.user.upsert({
-    where: { email: "editor@beyondheadlines.com" },
-    update: {},
-    create: {
-      email: "editor@beyondheadlines.com",
-      name: "Farah Karim",
-      role: "EDITOR",
-      password: editorPassword,
-    },
-  });
-
-  console.log(`[Seed] Users: admin(${admin.id}), editor(${editor.id})`);
+  console.log(`[Seed] Using identifies: admin(${adminEmail}), editor(${editorEmail})`);
 
   // ── Categories ─────────────────────────────────────────────────────────────
   const politics = await prisma.category.upsert({
@@ -164,7 +141,7 @@ async function main() {
       excerpt: "An in-depth look at the recent drop in fuel prices.",
       status: "PUBLISHED",
       categoryId: energy.id,
-      authorId: admin.id,
+      authorEmail: adminEmail,
       tags: ["bangladesh", "fuel-prices", "economy"],
       angle: "How fuel price adjustments affect local transportation costs.",
       tone: "ANALYTICAL",
@@ -178,7 +155,7 @@ async function main() {
   await prisma.revision.create({
     data: {
       articleId: article.id,
-      authorId: admin.id,
+      authorEmail: adminEmail,
       title: "Fueling Concerns v1",
       body: {
         type: "doc",
@@ -259,6 +236,84 @@ async function main() {
   }
 
   console.log("[Seed] Discovery SelectorConfigs initialized");
+
+  // ── Source Language Mappings (Admin Configurable) ──────────────────────────
+  const languageMappings = [
+    {
+      source: "PROTHOM_ALO",
+      bengaliDomain: "prothomalo.com",
+      englishDomain: "en.prothomalo.com",
+      languageStrategy: "ENGLISH_FIRST",
+      hasEnglishEdition: true,
+      fallbackEnabled: true,
+      description: "Prothom Alo - Has separate English edition at en.prothomalo.com",
+    },
+    {
+      source: "DAILY_STAR",
+      bengaliDomain: "bangla.thedailystar.net",
+      englishDomain: "thedailystar.net",
+      languageStrategy: "ENGLISH_FIRST",
+      hasEnglishEdition: true,
+      fallbackEnabled: true,
+      description: "Daily Star - English primary, Bengali at bangla subdomain",
+    },
+    {
+      source: "DHAKA_TRIBUNE",
+      bengaliDomain: "dhakatribune.com",
+      englishDomain: "dhakatribune.com",
+      languageStrategy: "ENGLISH_FIRST",
+      hasEnglishEdition: true,
+      fallbackEnabled: false,
+      description: "Dhaka Tribune - Publishes both languages on same domain",
+    },
+    {
+      source: "JUGANTOR",
+      bengaliDomain: "jugantor.com",
+      englishDomain: "en.jugantor.com",
+      languageStrategy: "ENGLISH_FIRST",
+      hasEnglishEdition: false,
+      fallbackEnabled: true,
+      description: "Jugantor - Primarily Bengali, limited English coverage",
+    },
+    {
+      source: "ITTEFAQ",
+      bengaliDomain: "ittefaq.com.bd",
+      englishDomain: "ittefaq.com.bd",
+      languageStrategy: "BENGALI_ONLY",
+      hasEnglishEdition: false,
+      fallbackEnabled: false,
+      description: "Ittefaq - Primarily Bengali, no English edition",
+    },
+    {
+      source: "BDNEWS24",
+      bengaliDomain: "bdnews24.com",
+      englishDomain: "bdnews24.com",
+      languageStrategy: "ENGLISH_FIRST",
+      hasEnglishEdition: true,
+      fallbackEnabled: false,
+      description: "BDNews24 - Publishes in English (and some Bengali sections)",
+    },
+  ];
+
+  for (const mapping of languageMappings) {
+    await prisma.sourceLanguageMapping.upsert({
+      where: { source: mapping.source },
+      update: {
+        bengaliDomain: mapping.bengaliDomain,
+        englishDomain: mapping.englishDomain,
+        languageStrategy: mapping.languageStrategy,
+        hasEnglishEdition: mapping.hasEnglishEdition,
+        fallbackEnabled: mapping.fallbackEnabled,
+        description: mapping.description,
+      },
+      create: {
+        ...mapping,
+        isActive: true,
+      },
+    });
+  }
+
+  console.log("[Seed] Source Language Mappings initialized");
   console.log("[Seed] ✅ Done!");
 }
 

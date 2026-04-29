@@ -180,6 +180,7 @@ services:
       - "3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+      NEXT_PUBLIC_LARAVEL_API_TOKEN: beyond-headlines-secret-token-2024
     depends_on:
       - api
     volumes:

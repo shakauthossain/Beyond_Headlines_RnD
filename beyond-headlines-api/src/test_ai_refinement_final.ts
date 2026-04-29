@@ -1,4 +1,4 @@
-import { extractSearchIntent } from './src/services/ai.service';
+import { extractSearchIntent } from './services/ai.service';
 
 async function test() {
   console.log('--- Testing Query Refinement ---');

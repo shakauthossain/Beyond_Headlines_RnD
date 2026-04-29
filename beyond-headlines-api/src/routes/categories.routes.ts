@@ -13,6 +13,10 @@ const router = Router();
  *   get:
  *     summary: List all categories
  *     tags: [Categories]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/emailParam'
  *     responses:
  *       200:
  *         description: List of categories
@@ -28,7 +32,19 @@ router.get('/', (req, res) => {
  *     summary: Create a category
  *     tags: [Categories]
  *     security:
- *       - bearerAuth: []
+ *       - apiToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               name: { type: string }
+ *               slug: { type: string }
+ *               parentId: { type: string }
+ *             required: [email, name]
  *     responses:
  *       201:
  *         description: Category created

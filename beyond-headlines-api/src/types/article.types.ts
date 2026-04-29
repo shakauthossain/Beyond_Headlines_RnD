@@ -21,7 +21,7 @@ export const articleUpdateSchema = articleCreateSchema.partial().extend({
 export const articleQuerySchema = z.object({
   status: z.enum(['DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'ARCHIVED']).optional(),
   categoryId: z.string().optional(),
-  authorId: z.string().optional(),
+  authorEmail: z.string().email().optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().default(20),
 });

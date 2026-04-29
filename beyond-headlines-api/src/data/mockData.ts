@@ -1,9 +1,4 @@
-import { User, Category, Tag, ScrapedHeadline, TopicCluster, Article, ArticleRevision, ResearchSession, MediaAsset } from '../types';
-
-export let users: User[] = [
-  { id: '1', email: 'admin@beyondheadlines.com', name: 'Zia Ahmed', role: 'ADMIN', avatar: 'https://i.pravatar.cc/150?u=zia' },
-  { id: '2', email: 'editor@beyondheadlines.com', name: 'Farah Karim', role: 'EDITOR', avatar: 'https://i.pravatar.cc/150?u=farah' },
-];
+import { Category, Tag, ScrapedHeadline, TopicCluster, Article, ArticleRevision, ResearchSession, MediaAsset } from '../types';
 
 export let categories: Category[] = [
   { id: '1', name: 'Politics', slug: 'politics' },
@@ -22,11 +17,11 @@ export let tags: Tag[] = [
 ];
 
 export let scrapedHeadlines: ScrapedHeadline[] = [
-  { id: 'h1', headline: 'Fuel oil prices set to decline at consumer level', url: 'https://prothomalo.com/fuel-prices', source: 'PROTHOM_ALO', scrapedAt: new Date().toISOString(), clusterId: 'c1' },
-  { id: 'h2', headline: 'Inflation eases slightly in March', url: 'https://thedailystar.net/inflation-march', source: 'DAILY_STAR', scrapedAt: new Date().toISOString(), clusterId: 'c2' },
-  { id: 'h3', headline: 'Election commission discusses roadmap', url: 'https://bdnews24.com/ec-roadmap', source: 'BDNEWS24', scrapedAt: new Date().toISOString(), clusterId: 'c3' },
-  { id: 'h4', headline: 'Dhaka temperature hits record 40 degrees', url: 'https://jugantor.com/heatwave', source: 'JUGANTOR', scrapedAt: new Date().toISOString() },
-  { id: 'h5', headline: 'New energy policy focuses on renewables', url: 'https://dhakatribune.com/energy-policy', source: 'DHAKA_TRIBUNE', scrapedAt: new Date().toISOString(), clusterId: 'c1' },
+  { id: 'h1', headline: 'Fuel oil prices set to decline at consumer level', url: 'https://prothomalo.com/fuel-prices', source: 'PROTHOM_ALO' as any, scrapedAt: new Date().toISOString(), clusterId: 'c1' },
+  { id: 'h2', headline: 'Inflation eases slightly in March', url: 'https://thedailystar.net/inflation-march', source: 'DAILY_STAR' as any, scrapedAt: new Date().toISOString(), clusterId: 'c2' },
+  { id: 'h3', headline: 'Election commission discusses roadmap', url: 'https://bdnews24.com/ec-roadmap', source: 'BDNEWS24' as any, scrapedAt: new Date().toISOString(), clusterId: 'c3' },
+  { id: 'h4', headline: 'Dhaka temperature hits record 40 degrees', url: 'https://jugantor.com/heatwave', source: 'JUGANTOR' as any, scrapedAt: new Date().toISOString() },
+  { id: 'h5', headline: 'New energy policy focuses on renewables', url: 'https://dhakatribune.com/energy-policy', source: 'DHAKA_TRIBUNE' as any, scrapedAt: new Date().toISOString(), clusterId: 'c1' },
 ];
 
 export let clusters: TopicCluster[] = [
@@ -68,7 +63,7 @@ export let articles: Article[] = [
     excerpt: 'An in-depth look at the recent drop in fuel prices.',
     status: 'PUBLISHED',
     categoryId: '5',
-    authorId: '1',
+    authorEmail: 'admin@beyondheadlines.com',
     tagIds: ['1', '2'],
     angle: 'How fuel price adjustments affect local transportation costs.',
     tone: 'ANALYTICAL',
@@ -84,7 +79,7 @@ export let articles: Article[] = [
     body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'While inflation remains a hurdle...' }] }] },
     status: 'DRAFT',
     categoryId: '2',
-    authorId: '2',
+    authorEmail: 'editor@beyondheadlines.com',
     tagIds: ['2', '4'],
     tone: 'EXPLANATORY',
     createdAt: new Date().toISOString(),
@@ -93,7 +88,7 @@ export let articles: Article[] = [
 ];
 
 export let revisions: ArticleRevision[] = [
-  { id: 'r1', articleId: 'a1', title: 'Fueling Concerns v1', body: 'Initial draft content...', createdAt: new Date().toISOString(), authorId: '1' },
+  { id: 'r1', articleId: 'a1', title: 'Fueling Concerns v1', body: 'Initial draft content...', createdAt: new Date().toISOString(), authorEmail: 'admin@beyondheadlines.com' },
 ];
 
 export let researchSessions: ResearchSession[] = [

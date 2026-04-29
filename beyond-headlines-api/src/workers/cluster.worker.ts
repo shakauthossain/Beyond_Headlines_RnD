@@ -6,6 +6,92 @@ import { makeKey, getCached, setCached } from '../redis/cache';
 import { config } from '../config';
 import * as cheerio from 'cheerio';
 
+// Fetch language mappings from database (cached for 1 hour)
+const getLanguageMappings = async () => {
+  const cacheKey = makeKey('admin', 'source_language_mappings');
+  
+  // Try cache first
+  let mappings = await getCached(cacheKey);
+  if (mappings) {
+    return mappings as Record<string, any>;
+  }
+
+  // Fetch from database without relying on generated Prisma model types.
+  // This keeps the worker resilient while the client is being regenerated.
+  const records = await db.$queryRawUnsafe<Array<{
+    source: string;
+    bengaliDomain: string;
+    englishDomain: string;
+    languageStrategy: string;
+    hasEnglishEdition: boolean;
+    fallbackEnabled: boolean;
+    isActive: boolean;
+    description: string | null;
+  }>>(`
+    SELECT
+      source,
+      "bengaliDomain",
+      "englishDomain",
+      "languageStrategy",
+      "hasEnglishEdition",
+      "fallbackEnabled",
+      "isActive",
+      description
+    FROM "SourceLanguageMapping"
+    WHERE "isActive" = true
+  `);
+
+  // Convert to object for fast lookups
+  const result: Record<string, any> = {};
+  for (const record of records) {
+    result[record.source] = record;
+  }
+
+  // Cache for 1 hour
+  await setCached(cacheKey, result, 3600);
+  return result;
+};
+
+const resolveEnglishVariantUrl = async (url: string, source: string) => {
+  try {
+    const parsed = new URL(url);
+    const mappings = await getLanguageMappings();
+    const mapping = mappings[source];
+
+    if (!mapping) {
+      return url;
+    }
+
+    // Apply language strategy
+    switch (mapping.languageStrategy) {
+      case 'ENGLISH_FIRST': {
+        if (mapping.hasEnglishEdition && parsed.hostname?.includes(mapping.bengaliDomain)) {
+          // Convert Bengali domain to English domain
+          const englishUrl = url.replace(mapping.bengaliDomain, mapping.englishDomain);
+          return englishUrl;
+        }
+        return url;
+      }
+      case 'BENGALI_FIRST': {
+        return url;
+      }
+      case 'ENGLISH_ONLY': {
+        if (!parsed.hostname?.includes(mapping.englishDomain)) {
+          return url.replace(parsed.hostname || '', mapping.englishDomain);
+        }
+        return url;
+      }
+      case 'BENGALI_ONLY': {
+        return url;
+      }
+      default:
+        return url;
+    }
+  } catch {
+    return url;
+  }
+};
+
 const clusterWorker = new Worker(
   'cluster',
   async (job) => {
@@ -83,13 +169,28 @@ const clusterWorker = new Worker(
 
       for (const article of topArticles) {
         try {
-          console.log(`[ClusterWorker] Deep Scraping: ${article.url}`);
-          const response = await fetch(article.url, { 
+          const englishUrl = await resolveEnglishVariantUrl(article.url, article.source);
+          const isEnglishVariant = englishUrl !== article.url;
+          
+          // Try English variant first if available
+          let response = await fetch(englishUrl, { 
             headers: { 'User-Agent': 'Mozilla/5.0' },
             signal: AbortSignal.timeout(10000) 
           });
+
+          // Fallback to original URL if English variant failed and variants exist
+          if (!response.ok && isEnglishVariant) {
+            console.log(`[ClusterWorker] English variant (${englishUrl.split('/')[2]}) returned ${response.status}. Falling back to original URL.`);
+            response = await fetch(article.url, {
+              headers: { 'User-Agent': 'Mozilla/5.0' },
+              signal: AbortSignal.timeout(10000),
+            });
+          }
           
-          if (!response.ok) continue;
+          if (!response.ok) {
+            console.log(`[ClusterWorker] Both URLs failed. English: ${response.status}`);
+            continue;
+          }
 
           const html = await response.text();
           const $ = cheerio.load(html);

@@ -11,7 +11,20 @@ const router = Router();
  * /scrape/trigger:
  *   post:
  *     summary: Manually queue a scrape job
- *     tags: [Scrape]
+ *     tags: [Step 01 - Scrape]
+ *     security:
+ *       - apiToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               query: { type: string }
+ *               category: { type: string }
+ *             required: [email]
  */
 router.post('/trigger', requireAdmin, async (req, res) => {
   const job = await triggerScrapeJob(req.body?.query, req.body?.category || 'General');
@@ -23,7 +36,16 @@ router.post('/trigger', requireAdmin, async (req, res) => {
  * /scrape/status/{jobId}:
  *   get:
  *     summary: Scrape job status
- *     tags: [Scrape]
+ *     tags: [Step 01 - Scrape]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/emailParam'
+ *       - in: path
+ *         name: jobId
+ *         required: true
+ *         schema:
+ *           type: string
  */
 router.get('/status/:jobId', authenticate, (req, res) => {
   return ok(res, { jobId: req.params.jobId, status: 'COMPLETED', progress: 100 });
@@ -34,7 +56,11 @@ router.get('/status/:jobId', authenticate, (req, res) => {
  * /scrape/last-run:
  *   get:
  *     summary: Last scrape run summary
- *     tags: [Scrape]
+ *     tags: [Step 01 - Scrape]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/emailParam'
  */
 router.get('/last-run', authenticate, async (req, res) => {
   const lastHeadline = await db.scrapedHeadline.findFirst({
@@ -57,7 +83,11 @@ router.get('/last-run', authenticate, async (req, res) => {
  * /scrape/configs:
  *   get:
  *     summary: Get all scraper configurations
- *     tags: [Scrape]
+ *     tags: [Step 01 - Scrape]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/emailParam'
  */
 router.get('/configs', authenticate, async (req, res) => {
   const configs = await db.selectorConfig.findMany({
@@ -71,7 +101,23 @@ router.get('/configs', authenticate, async (req, res) => {
  * /scrape/configs:
  *   post:
  *     summary: Create a new scraper configuration
- *     tags: [Scrape]
+ *     tags: [Step 01 - Scrape]
+ *     security:
+ *       - apiToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               sourceName: { type: string }
+ *               category: { type: string }
+ *               urlSlug: { type: string }
+ *               selector: { type: string }
+ *               isActive: { type: boolean }
+ *             required: [email, sourceName, category, urlSlug, selector]
  */
 router.post('/configs', authenticate, requireEditorOrAdmin, async (req, res) => {
   const { sourceName, category, urlSlug, selector, isActive } = req.body;
@@ -86,7 +132,29 @@ router.post('/configs', authenticate, requireEditorOrAdmin, async (req, res) => 
  * /scrape/configs/{id}:
  *   put:
  *     summary: Update a scraper configuration
- *     tags: [Scrape]
+ *     tags: [Step 01 - Scrape]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               sourceName: { type: string }
+ *               category: { type: string }
+ *               urlSlug: { type: string }
+ *               selector: { type: string }
+ *               isActive: { type: boolean }
+ *             required: [email]
  */
 router.put('/configs/:id', authenticate, requireEditorOrAdmin, async (req, res) => {
   try {
@@ -107,7 +175,16 @@ router.put('/configs/:id', authenticate, requireEditorOrAdmin, async (req, res) 
  * /scrape/configs/{id}:
  *   delete:
  *     summary: Delete a scraper configuration
- *     tags: [Scrape]
+ *     tags: [Step 01 - Scrape]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/emailParam'
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
  */
 router.delete('/configs/:id', authenticate, requireEditorOrAdmin, async (req, res) => {
   await db.selectorConfig.delete({

@@ -25,14 +25,19 @@ const router = Router();
  *   get:
  *     summary: List articles with filters
  *     tags: [Articles]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
+ *       - $ref: '#/components/parameters/emailParam'
  */
 router.get('/', async (req, res) => {
-  const { status, categoryId, authorId, page = 1, limit = 20 } = req.query;
+  const { status, categoryId, authorEmail, page = 1, limit = 20 } = req.query;
   
   const where: any = {};
   if (status) where.status = status;
   if (categoryId) where.categoryId = categoryId;
-  if (authorId) where.authorId = authorId;
+  if (authorEmail) where.authorEmail = authorEmail;
 
   const [total, data] = await Promise.all([
     db.article.count({ where }),
@@ -41,7 +46,7 @@ router.get('/', async (req, res) => {
       skip: (Number(page) - 1) * Number(limit),
       take: Number(limit),
       orderBy: { updatedAt: 'desc' },
-      include: { category: true, author: { select: { id: true, name: true, role: true } } }
+      include: { category: true }
     })
   ]);
 
@@ -54,6 +59,15 @@ router.get('/', async (req, res) => {
  *   get:
  *     summary: Get article by ID or slug
  *     tags: [Articles]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/emailParam'
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
  */
 router.get('/:id', async (req, res) => {
   const article = await db.article.findFirst({
@@ -63,7 +77,7 @@ router.get('/:id', async (req, res) => {
         { slug: req.params.id }
       ]
     },
-    include: { category: true, author: { select: { id: true, name: true, role: true } } }
+    include: { category: true }
   });
 
   if (!article) return notFound(res, 'Article not found');
@@ -77,6 +91,17 @@ router.get('/:id', async (req, res) => {
  *   post:
  *     summary: Create new article
  *     tags: [Articles]
+ *     security:
+ *       - apiToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ArticleCreateRequest'
+ *     responses:
+ *       201:
+ *         description: Article created
  */
 router.post('/', authenticate, validate(articleCreateSchema), async (req: Request, res: Response) => {
   const slug = req.body.title.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '-').replace(/^-+|-+$/g, '');
@@ -86,7 +111,7 @@ router.post('/', authenticate, validate(articleCreateSchema), async (req: Reques
       ...req.body,
       slug,
       status: 'DRAFT',
-      authorId: req.user!.id,
+      authorEmail: res.locals.laravelUserEmail!,
     }
   });
 
@@ -99,6 +124,21 @@ router.post('/', authenticate, validate(articleCreateSchema), async (req: Reques
  *   patch:
  *     summary: Update an article
  *     tags: [Articles]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ArticleUpdateRequest'
  */
 router.patch('/:id', authenticate, validate(articleUpdateSchema), async (req, res) => {
   try {
@@ -121,6 +161,16 @@ router.patch('/:id', authenticate, validate(articleUpdateSchema), async (req, re
  *   delete:
  *     summary: Delete an article
  *     tags: [Articles]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
+ *       - $ref: '#/components/parameters/emailParam'
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
  */
 router.delete('/:id', authenticate, async (req, res) => {
   try {
@@ -137,6 +187,16 @@ router.delete('/:id', authenticate, async (req, res) => {
  *   get:
  *     summary: Get revision history
  *     tags: [Articles]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
+ *       - $ref: '#/components/parameters/emailParam'
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
  */
 router.get('/:id/revisions', async (req, res) => {
   const history = await db.revision.findMany({
@@ -152,6 +212,14 @@ router.get('/:id/revisions', async (req, res) => {
  *   post:
  *     summary: Create an autosave revision
  *     tags: [Articles]
+ *     security:
+ *       - apiToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/RevisionRequest'
  */
 router.post('/:id/autosave', authenticate, validate(revisionCreateSchema), async (req, res) => {
   const newRevision = await db.revision.create({
@@ -159,7 +227,7 @@ router.post('/:id/autosave', authenticate, validate(revisionCreateSchema), async
       articleId: req.params.id,
       body: req.body.body,
       title: req.body.title,
-      authorId: req.user!.id,
+      authorEmail: res.locals.laravelUserEmail!,
     }
   });
   return created(res, newRevision);
@@ -171,6 +239,30 @@ router.post('/:id/autosave', authenticate, validate(revisionCreateSchema), async
  *   post:
  *     summary: AI Assistance for drafting (Outline, Assist, Counterpoint)
  *     tags: [Articles]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               mode: { type: string, enum: [outline, assist, counterpoint, complete_sections, conversational, complete_section, rewrite_section] }
+ *               text: { type: string }
+ *               prompt: { type: string }
+ *               sectionTitle: { type: string }
+ *               sectionNote: { type: string }
+ *               sectionBody: { type: string }
+ *             required: [email, mode]
  */
 router.post('/:id/assist', authenticate, async (req, res) => {
   try {
@@ -296,12 +388,38 @@ router.post('/:id/assist', authenticate, async (req, res) => {
  *   post:
  *     summary: AI Sub-editing (Clarity, Tone, Flow)
  *     tags: [Articles]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *             required: [email]
  */
 router.post('/:id/sub-edit', authenticate, async (req, res) => {
   const article = await db.article.findUnique({ where: { id: req.params.id } });
   if (!article) return notFound(res, 'Article not found');
 
+  if (article.subEditReport) return ok(res, article.subEditReport);
+
   const result = await subEditArticle(JSON.stringify(article.body));
+
+  await db.article.update({
+    where: { id: req.params.id },
+    data: { subEditReport: result as any }
+  });
+
   return ok(res, result);
 });
 
@@ -311,12 +429,39 @@ router.post('/:id/sub-edit', authenticate, async (req, res) => {
  *   post:
  *     summary: AI Headline scoring
  *     tags: [Articles]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *               headlines: { type: array, items: { type: string } }
+ *             required: [email, headlines]
  */
 router.post('/:id/headlines-score', authenticate, async (req, res) => {
   const { headlines } = req.body;
   if (!headlines || !Array.isArray(headlines)) return res.status(400).json({ message: 'Headlines array required' });
 
+  // For scoring, we always run it because the user might have changed the inputs,
+  // but we store the latest one for UI persistence on reload.
   const result = await scoreHeadlines(headlines);
+
+  await db.article.update({
+    where: { id: req.params.id },
+    data: { headlineScores: result as any }
+  });
+
   return ok(res, result);
 });
 
@@ -326,12 +471,38 @@ router.post('/:id/headlines-score', authenticate, async (req, res) => {
  *   post:
  *     summary: AI Article packaging (Image concept, Social captions)
  *     tags: [Articles]
+ *     security:
+ *       - apiToken: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/apiTokenParam'
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string, format: email }
+ *             required: [email]
  */
 router.post('/:id/packaging', authenticate, async (req, res) => {
   const article = await db.article.findUnique({ where: { id: req.params.id } });
   if (!article) return notFound(res, 'Article not found');
 
+  if (article.packaging) return ok(res, article.packaging);
+
   const result = await generatePackaging(article.title, JSON.stringify(article.body));
+
+  await db.article.update({
+    where: { id: req.params.id },
+    data: { packaging: result as any }
+  });
+
   return ok(res, result);
 });
 
